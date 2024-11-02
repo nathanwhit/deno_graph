@@ -47,6 +47,7 @@ use deno_semver::package::PackageReq;
 use deno_semver::package::PackageReqReferenceParseError;
 use deno_semver::RangeSetOrTag;
 use deno_semver::Version;
+use deno_semver::VersionReq;
 use futures::future::LocalBoxFuture;
 use futures::stream::FuturesOrdered;
 use futures::stream::FuturesUnordered;
@@ -187,8 +188,11 @@ pub enum JsrLoadError {
   PackageVersionManifestChecksumIntegrity(PackageNv, ChecksumIntegrityError),
   #[error(transparent)]
   PackageFormat(JsrPackageFormatError),
-  #[error("Could not find version of '{}' that matches specified version constraint '{}'", .0.name, .0.version_req)]
-  PackageReqNotFound(PackageReq),
+  #[error("Could not find version of '{}' that matches specified version constraint '{}'{}", .req.name, .req.version_req, .suggested_alternative.as_ref().map(|req| format!("\nMaybe try specifying {req} instead")).unwrap_or_default())]
+  PackageReqNotFound {
+    req: PackageReq,
+    suggested_alternative: Option<VersionReq>,
+  },
   #[error("Redirects in the JSR registry are not supported (redirected to '{}')", .0)]
   RedirectInPackage(ModuleSpecifier),
   #[error("Unknown export '{}' for '{}'.\n  Package exports:\n{}", export_name, .nv, .exports.iter().map(|e| format!(" * {}", e)).collect::<Vec<_>>().join("\n"))]
@@ -3516,13 +3520,21 @@ impl<'a, 'graph> Builder<'a, 'graph> {
                 );
                 pending_resolutions.push_front(pending_resolution);
               } else {
+                let suggested_req =
+                  super::packages::suggested_alternative_version_req(
+                    &package_req.version_req,
+                    info.versions.iter(),
+                  );
                 self.graph.module_slots.insert(
                   pending_resolution.specifier.clone(),
                   ModuleSlot::Err(ModuleError::LoadingErr(
                     pending_resolution.specifier.clone(),
                     pending_resolution.maybe_range.clone(),
-                    JsrLoadError::PackageReqNotFound(package_req.clone())
-                      .into(),
+                    JsrLoadError::PackageReqNotFound {
+                      req: package_req.clone(),
+                      suggested_alternative: suggested_req,
+                    }
+                    .into(),
                   )),
                 );
               }

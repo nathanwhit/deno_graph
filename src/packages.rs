@@ -231,13 +231,13 @@ impl PackageSpecifiers {
   }
 }
 
-pub fn resolve_version<'a>(
-  version_req: &VersionReq,
+fn best_version<'a>(
   versions: impl Iterator<Item = &'a Version>,
+  mut predicate: impl FnMut(&'a Version) -> bool,
 ) -> Option<&'a Version> {
   let mut maybe_best_version: Option<&Version> = None;
   for version in versions {
-    if version_req.matches(version) {
+    if predicate(version) {
       let is_best_version = maybe_best_version
         .as_ref()
         .map(|best_version| (*best_version).cmp(version).is_lt())
@@ -248,4 +248,26 @@ pub fn resolve_version<'a>(
     }
   }
   maybe_best_version
+}
+
+pub fn resolve_version<'a>(
+  version_req: &VersionReq,
+  versions: impl Iterator<Item = &'a Version>,
+) -> Option<&'a Version> {
+  best_version(versions, |version| version_req.matches(version))
+}
+
+pub fn suggested_alternative_version_req<'a>(
+  version_req: &VersionReq,
+  versions: impl Iterator<Item = (&'a Version, &'a JsrPackageInfoVersion)>,
+) -> Option<VersionReq> {
+  if version_req.version_text() == "*" {
+    let latest_version = best_version(
+      versions.filter_map(|(vers, info)| info.yanked.then(|| vers)),
+      |_| true,
+    )?;
+    VersionReq::parse_from_specifier(&format!("^{latest_version}")).ok()
+  } else {
+    None
+  }
 }
