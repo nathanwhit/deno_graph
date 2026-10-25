@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use deno_ast::Comment;
+use deno_ast::oxc::ast::ast::Comment;
 use deno_ast::JSStrExt;
 use deno_ast::MediaType;
 use deno_ast::ModuleSpecifier;
