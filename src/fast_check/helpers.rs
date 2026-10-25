@@ -6,21 +6,19 @@ use deno_ast::oxc::allocator::Allocator;
 use deno_ast::oxc::allocator::Box;
 use deno_ast::oxc::allocator::CloneIn;
 use deno_ast::oxc::ast::ast::*;
+use deno_ast::oxc::ast::builder::AstBuilder;
 use deno_ast::oxc::span::Ident;
 use deno_ast::oxc::span::SPAN;
-use deno_ast::oxc::syntax::node::NodeId;
-use std::cell::Cell;
 
 pub fn new_ident<'a>(
   allocator: &'a Allocator,
   name: &str,
 ) -> BindingIdentifier<'a> {
-  BindingIdentifier {
-    node_id: Cell::new(NodeId::DUMMY),
-    span: SPAN,
-    name: Ident::from(allocator.alloc_str(name)),
-    symbol_id: Cell::new(None),
-  }
+  BindingIdentifier::new(
+    SPAN,
+    Ident::from(allocator.alloc_str(name)),
+    &AstBuilder::new(allocator),
+  )
 }
 
 pub fn ts_keyword_type<'a>(
@@ -29,60 +27,36 @@ pub fn ts_keyword_type<'a>(
 ) -> TSType<'a> {
   match kind {
     TSKeywordKind::Any => TSType::TSAnyKeyword(Box::new_in(
-      TSAnyKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSAnyKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
     TSKeywordKind::Unknown => TSType::TSUnknownKeyword(Box::new_in(
-      TSUnknownKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSUnknownKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
     TSKeywordKind::Boolean => TSType::TSBooleanKeyword(Box::new_in(
-      TSBooleanKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSBooleanKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
     TSKeywordKind::Number => TSType::TSNumberKeyword(Box::new_in(
-      TSNumberKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSNumberKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
     TSKeywordKind::String => TSType::TSStringKeyword(Box::new_in(
-      TSStringKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSStringKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
     TSKeywordKind::Void => TSType::TSVoidKeyword(Box::new_in(
-      TSVoidKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSVoidKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
     TSKeywordKind::Null => TSType::TSNullKeyword(Box::new_in(
-      TSNullKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSNullKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
     TSKeywordKind::BigInt => TSType::TSBigIntKeyword(Box::new_in(
-      TSBigIntKeyword {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-      },
-      allocator,
+      TSBigIntKeyword::new(SPAN, &AstBuilder::new(allocator)),
+      &allocator,
     )),
   }
 }
@@ -229,13 +203,13 @@ pub fn ts_readonly<'a>(
   ann: TSType<'a>,
 ) -> TSType<'a> {
   TSType::TSTypeOperatorType(Box::new_in(
-    TSTypeOperator {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-      operator: TSTypeOperatorOperator::Readonly,
-      type_annotation: ann,
-    },
-    allocator,
+    TSTypeOperator::new(
+      SPAN,
+      TSTypeOperatorOperator::Readonly,
+      ann,
+      &AstBuilder::new(allocator),
+    ),
+    &allocator,
   ))
 }
 
@@ -244,12 +218,8 @@ pub fn type_ann<'a>(
   ts_type: TSType<'a>,
 ) -> Box<'a, TSTypeAnnotation<'a>> {
   Box::new_in(
-    TSTypeAnnotation {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-      type_annotation: ts_type,
-    },
-    allocator,
+    TSTypeAnnotation::new(SPAN, ts_type, &AstBuilder::new(allocator)),
+    &allocator,
   )
 }
 
@@ -257,20 +227,19 @@ pub fn type_ref<'a>(
   allocator: &'a Allocator,
   name: &str,
 ) -> TSTypeReference<'a> {
-  TSTypeReference {
-    node_id: Cell::new(NodeId::DUMMY),
-    span: SPAN,
-    type_name: TSTypeName::IdentifierReference(Box::new_in(
-      IdentifierReference {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-        name: Ident::from(allocator.alloc_str(name)),
-        reference_id: Cell::new(None),
-      },
-      allocator,
+  TSTypeReference::new(
+    SPAN,
+    TSTypeName::IdentifierReference(Box::new_in(
+      IdentifierReference::new(
+        SPAN,
+        Ident::from(allocator.alloc_str(name)),
+        &AstBuilder::new(allocator),
+      ),
+      &allocator,
     )),
-    type_arguments: None,
-  }
+    None,
+    &AstBuilder::new(allocator),
+  )
 }
 
 pub fn ts_lit_type<'a>(
@@ -278,17 +247,16 @@ pub fn ts_lit_type<'a>(
   lit: TSLiteral<'a>,
 ) -> TSType<'a> {
   TSType::TSLiteralType(Box::new_in(
-    TSLiteralType {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-      literal: lit,
-    },
-    allocator,
+    TSLiteralType::new(SPAN, lit, &AstBuilder::new(allocator)),
+    &allocator,
   ))
 }
 
 pub fn regex_type<'a>(allocator: &'a Allocator) -> TSType<'a> {
-  TSType::TSTypeReference(Box::new_in(type_ref(allocator, "RegExp"), allocator))
+  TSType::TSTypeReference(Box::new_in(
+    type_ref(allocator, "RegExp"),
+    &allocator,
+  ))
 }
 
 /// Convert a TSType into a TSTupleElement.
@@ -353,14 +321,14 @@ pub fn maybe_lit_to_ts_type<'a>(
         allocator,
         TSLiteral::StringLiteral(Box::new_in(
           lit_str.as_ref().clone_in(allocator),
-          allocator,
+          &allocator,
         )),
       )),
       Expression::BooleanLiteral(lit_bool) => Some(ts_lit_type(
         allocator,
         TSLiteral::BooleanLiteral(Box::new_in(
           lit_bool.as_ref().clone_in(allocator),
-          allocator,
+          &allocator,
         )),
       )),
       Expression::NullLiteral(_) => {
@@ -370,14 +338,14 @@ pub fn maybe_lit_to_ts_type<'a>(
         allocator,
         TSLiteral::NumericLiteral(Box::new_in(
           lit_num.as_ref().clone_in(allocator),
-          allocator,
+          &allocator,
         )),
       )),
       Expression::BigIntLiteral(lit_bigint) => Some(ts_lit_type(
         allocator,
         TSLiteral::BigIntLiteral(Box::new_in(
           lit_bigint.as_ref().clone_in(allocator),
-          allocator,
+          &allocator,
         )),
       )),
       Expression::RegExpLiteral(_) => Some(regex_type(allocator)),

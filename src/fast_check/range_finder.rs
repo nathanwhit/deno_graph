@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use deno_ast::JSStrExt;
 use deno_ast::oxc::span::Span;
 use deno_semver::package::PackageNv;
 use indexmap::IndexMap;
@@ -809,10 +810,11 @@ impl<'a> PublicRangeFinder<'a> {
           for re_export_all_node in re_export_all_nodes {
             log::trace!(
               "Found re-export all - {}",
-              re_export_all_node.source.value
+              re_export_all_node.source.value.to_str_lossy()
             );
             found_ranges.insert(re_export_all_node.span);
-            let specifier_text = re_export_all_node.source.value.to_string();
+            let specifier_text =
+              re_export_all_node.source.value.to_string_lossy();
             if let Some(dep_specifier) = self.graph.resolve_dependency(
               &specifier_text,
               module_info.specifier(),
@@ -877,7 +879,8 @@ impl<'a> PublicRangeFinder<'a> {
             if named_exports.is_empty() {
               break; // all done
             }
-            let specifier_text = re_export_all_node.source.value.to_string();
+            let specifier_text =
+              re_export_all_node.source.value.to_string_lossy();
             if let Some(dep_specifier) = self.graph.resolve_dependency(
               &specifier_text,
               module_info.specifier(),
@@ -895,7 +898,7 @@ impl<'a> PublicRangeFinder<'a> {
                   if found_ranges.insert(re_export_all_node.span) {
                     log::trace!(
                       "Found re-export all - {}",
-                      re_export_all_node.source.value
+                      re_export_all_node.source.value.to_str_lossy()
                     );
                   }
                   let export_name = export_name.clone();
@@ -932,7 +935,7 @@ impl<'a> PublicRangeFinder<'a> {
               for re_export_all_node in re_export_all_nodes {
                 log::trace!(
                   "Found re-export all - {}",
-                  re_export_all_node.source.value
+                  re_export_all_node.source.value.to_str_lossy()
                 );
                 found_ranges.insert(re_export_all_node.span);
               }

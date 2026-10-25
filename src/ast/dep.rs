@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use deno_ast::JSStrExt;
 use deno_ast::oxc::ast::ast::*;
 use deno_ast::oxc::ast_visit::Visit;
 use deno_ast::oxc::ast_visit::walk;
@@ -169,7 +170,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
         kind,
         leading_comments,
         span: node.span,
-        specifier: node.source.value.to_string(),
+        specifier: node.source.value.to_string_lossy(),
         specifier_span: node.source.span,
         import_attributes: parse_import_attributes(
           node.with_clause.as_ref().map(|b| b.as_ref()),
@@ -180,41 +181,40 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
     );
   }
 
-  fn visit_export_named_declaration(
-    &mut self,
-    node: &ExportNamedDeclaration<'a>,
-  ) {
-    let Some(src) = &node.source else {
-      // Check for `export import X = require("...")` pattern
-      if let Some(Declaration::TSImportEqualsDeclaration(import_eq)) =
-        &node.declaration
-        && let TSModuleReference::ExternalModuleReference(module) =
-          &import_eq.module_reference
-      {
-        let leading_comments = self.get_leading_comments(node.span.start);
-        let expr = &module.expression;
-        let kind = if import_eq.import_kind == ImportOrExportKind::Type {
-          StaticDependencyKind::ImportType
-        } else {
-          StaticDependencyKind::ExportEquals
-        };
-        self.items.push(
-          StaticDependencyDescriptor {
-            kind,
-            leading_comments,
-            span: node.span,
-            specifier: expr.value.to_string(),
-            specifier_span: expr.span,
-            import_attributes: Default::default(),
-            is_side_effect: false,
-          }
-          .into(),
-        );
-        return;
-      }
-      walk::walk_export_named_declaration(self, node);
+  fn visit_export_declaration(&mut self, node: &ExportDeclaration<'a>) {
+    // Check for `export import X = require("...")` pattern
+    if let Declaration::TSImportEqualsDeclaration(import_eq) = &node.declaration
+      && let TSModuleReference::ExternalModuleReference(module) =
+        &import_eq.module_reference
+    {
+      let leading_comments = self.get_leading_comments(node.span.start);
+      let expr = &module.expression;
+      let kind = if import_eq.import_kind == ImportOrExportKind::Type {
+        StaticDependencyKind::ImportType
+      } else {
+        StaticDependencyKind::ExportEquals
+      };
+      self.items.push(
+        StaticDependencyDescriptor {
+          kind,
+          leading_comments,
+          span: node.span,
+          specifier: expr.value.to_string_lossy(),
+          specifier_span: expr.span,
+          import_attributes: Default::default(),
+          is_side_effect: false,
+        }
+        .into(),
+      );
       return;
-    };
+    }
+    walk::walk_export_declaration(self, node);
+  }
+
+  fn visit_export_from_declaration(
+    &mut self,
+    node: &ExportFromDeclaration<'a>,
+  ) {
     let leading_comments = self.get_leading_comments(node.span.start);
     let kind = if node.export_kind == ImportOrExportKind::Type {
       StaticDependencyKind::ExportType
@@ -226,8 +226,8 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
         kind,
         leading_comments,
         span: node.span,
-        specifier: src.value.to_string(),
-        specifier_span: src.span,
+        specifier: node.source.value.to_string_lossy(),
+        specifier_span: node.source.span,
         import_attributes: parse_import_attributes(
           node.with_clause.as_ref().map(|b| b.as_ref()),
         ),
@@ -249,7 +249,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
         kind,
         leading_comments,
         span: node.span,
-        specifier: node.source.value.to_string(),
+        specifier: node.source.value.to_string_lossy(),
         specifier_span: node.source.span,
         import_attributes: parse_import_attributes(
           node.with_clause.as_ref().map(|b| b.as_ref()),
@@ -267,7 +267,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
         kind: StaticDependencyKind::ImportType,
         leading_comments,
         span: node.span,
-        specifier: node.source.value.to_string(),
+        specifier: node.source.value.to_string_lossy(),
         specifier_span: node.source.span,
         import_attributes: node
           .options
@@ -286,7 +286,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
 
     let (argument, argument_span) = match &node.source {
       Expression::StringLiteral(s) => {
-        (DynamicArgument::String(s.value.to_string()), s.span)
+        (DynamicArgument::String(s.value.to_string_lossy()), s.span)
       }
       Expression::TemplateLiteral(tpl) => {
         if tpl.quasis.len() == 1 && tpl.expressions.is_empty() {
@@ -294,7 +294,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
             .value
             .cooked
             .as_ref()
-            .map(|s| s.to_string())
+            .map(|s| s.to_string_lossy())
             .unwrap_or_default();
           (DynamicArgument::String(cooked), tpl.span)
         } else {
@@ -305,7 +305,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
               .value
               .cooked
               .as_ref()
-              .map(|s| s.to_string())
+              .map(|s| s.to_string_lossy())
               .unwrap_or_default();
             if !cooked.is_empty() {
               parts.push(DynamicTemplatePart::String(cooked));
@@ -333,7 +333,8 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
               visit_bin(parts, left)?;
             }
             Expression::StringLiteral(s) => {
-              parts.push(DynamicTemplatePart::String(s.value.to_string()));
+              parts
+                .push(DynamicTemplatePart::String(s.value.to_string_lossy()));
             }
             _ => {
               if parts.is_empty() {
@@ -344,7 +345,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
           };
 
           if let Expression::StringLiteral(s) = &bin.right {
-            parts.push(DynamicTemplatePart::String(s.value.to_string()));
+            parts.push(DynamicTemplatePart::String(s.value.to_string_lossy()));
           } else {
             parts.push(DynamicTemplatePart::Expr);
           }
@@ -404,7 +405,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
 
     let (argument, argument_span) = match arg_expr.as_expression().unwrap() {
       Expression::StringLiteral(s) => {
-        (DynamicArgument::String(s.value.to_string()), s.span)
+        (DynamicArgument::String(s.value.to_string_lossy()), s.span)
       }
       other => (DynamicArgument::Expr, other.span()),
     };
@@ -443,7 +444,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
           kind,
           leading_comments,
           span: node.span,
-          specifier: expr.value.to_string(),
+          specifier: expr.value.to_string_lossy(),
           specifier_span: expr.span,
           import_attributes: Default::default(),
           is_side_effect: false,
@@ -453,9 +454,13 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
     }
   }
 
-  fn visit_ts_module_declaration(&mut self, node: &TSModuleDeclaration<'a>) {
-    if let TSModuleDeclarationName::StringLiteral(id_str) = &node.id {
-      let value_str = id_str.value.as_str();
+  fn visit_ts_external_module_declaration(
+    &mut self,
+    node: &TSExternalModuleDeclaration<'a>,
+  ) {
+    {
+      let id_str = &node.id;
+      let value_str = id_str.value.to_str_lossy();
       if !value_str.contains('*')
         || value_str.starts_with("./")
         || value_str.starts_with("../")
@@ -467,7 +472,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
             kind: StaticDependencyKind::MaybeTsModuleAugmentation,
             leading_comments,
             span: id_str.span,
-            specifier: id_str.value.to_string(),
+            specifier: id_str.value.to_string_lossy(),
             specifier_span: id_str.span,
             import_attributes: Default::default(),
             is_side_effect: false,
@@ -476,7 +481,7 @@ impl<'a, 'b> Visit<'a> for DependencyCollector<'a, 'b> {
         );
       }
     }
-    walk::walk_ts_module_declaration(self, node);
+    walk::walk_ts_external_module_declaration(self, node);
   }
 }
 
@@ -491,11 +496,12 @@ fn parse_import_attributes(
   for attr in &with.with_entries {
     let key = match &attr.key {
       ImportAttributeKey::Identifier(ident) => ident.name.to_string(),
-      ImportAttributeKey::StringLiteral(s) => s.value.to_string(),
+      ImportAttributeKey::StringLiteral(s) => s.value.to_string_lossy(),
     };
-    let value_str = attr.value.value.as_str();
-    import_attributes
-      .insert(key, ImportAttribute::Known(value_str.to_string()));
+    import_attributes.insert(
+      key,
+      ImportAttribute::Known(attr.value.value.to_string_lossy()),
+    );
   }
   ImportAttributes::Known(import_attributes)
 }
@@ -516,7 +522,7 @@ fn parse_ts_import_type_options(
       return ImportAttributes::Unknown;
     }
     let key = match &prop.key {
-      PropertyKey::StringLiteral(s) => s.value.to_string(),
+      PropertyKey::StringLiteral(s) => s.value.to_string_lossy(),
       PropertyKey::StaticIdentifier(ident) => ident.name.to_string(),
       _ => return ImportAttributes::Unknown,
     };
@@ -560,7 +566,7 @@ fn parse_dynamic_import_attributes_from_expr(
       return ImportAttributes::Unknown;
     }
     let key = match &prop.key {
-      PropertyKey::StringLiteral(s) => s.value.to_string(),
+      PropertyKey::StringLiteral(s) => s.value.to_string_lossy(),
       PropertyKey::StaticIdentifier(ident) => ident.name.to_string(),
       _ => return ImportAttributes::Unknown,
     };
@@ -600,12 +606,13 @@ fn parse_import_attributes_from_object_expr(
       return ImportAttributes::Unknown;
     }
     let key = match &prop.key {
-      PropertyKey::StringLiteral(s) => s.value.to_string(),
+      PropertyKey::StringLiteral(s) => s.value.to_string_lossy(),
       PropertyKey::StaticIdentifier(ident) => ident.name.to_string(),
       _ => return ImportAttributes::Unknown,
     };
     if let Expression::StringLiteral(s) = &prop.value {
-      attributes_map.insert(key, ImportAttribute::Known(s.value.to_string()));
+      attributes_map
+        .insert(key, ImportAttribute::Known(s.value.to_string_lossy()));
     } else {
       attributes_map.insert(key, ImportAttribute::Unknown);
     }

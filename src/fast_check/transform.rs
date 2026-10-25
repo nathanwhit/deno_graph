@@ -4,11 +4,11 @@
 #![allow(clippy::disallowed_methods)]
 #![allow(clippy::disallowed_types)]
 
-use std::cell::Cell;
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use deno_ast::EmitOptions;
+use deno_ast::JSStrExt;
 use deno_ast::MediaType;
 use deno_ast::ModuleSpecifier;
 use deno_ast::SourceTextInfo;
@@ -20,12 +20,12 @@ use deno_ast::oxc::allocator::Vec as OxcVec;
 use deno_ast::oxc::ast::Comment;
 use deno_ast::oxc::ast::CommentKind;
 use deno_ast::oxc::ast::ast::*;
+use deno_ast::oxc::ast::builder::AstBuilder;
 use deno_ast::oxc::span::GetSpan;
 use deno_ast::oxc::span::Ident;
 use deno_ast::oxc::span::SPAN;
 use deno_ast::oxc::span::Span;
-use deno_ast::oxc::span::Str;
-use deno_ast::oxc::syntax::node::NodeId;
+use deno_ast::oxc::str::JSStr;
 use indexmap::IndexMap;
 
 use crate::ModuleGraph;
@@ -63,7 +63,7 @@ impl<'a> CommentsMut<'a> {
     comments: &[Comment],
     source_text: &str,
   ) -> Self {
-    let mut filtered = OxcVec::new_in(allocator);
+    let mut filtered = OxcVec::new_in(&allocator);
     for c in comments {
       // Match the swc-based deno_graph: only keep JSDoc block comments and
       // `@ts-*` line comments. Everything else (notably `@deno-types`
@@ -78,6 +78,7 @@ impl<'a> CommentsMut<'a> {
         CommentKind::SingleLineBlock | CommentKind::MultiLineBlock => {
           text.starts_with('*')
         }
+        CommentKind::HtmlOpen | CommentKind::HtmlClose => false,
       };
       if keep {
         filtered.push(c.clone_in(allocator));
@@ -354,11 +355,11 @@ impl<'a> FastCheckTransformer<'a> {
     );
 
     let body =
-      std::mem::replace(&mut program.body, OxcVec::new_in(self.allocator));
+      std::mem::replace(&mut program.body, OxcVec::new_in(&self.allocator));
     let body_vec: Vec<Statement<'a>> = body.into_iter().collect();
     let new_body =
       self.transform_module_body(body_vec, &mut comments, is_ambient)?;
-    program.body = OxcVec::from_iter_in(new_body, self.allocator);
+    program.body = OxcVec::from_iter_in(new_body, &self.allocator);
     let param_spans =
       collect_formal_parameter_spans(self.es_module_info.program());
     comments.reanchor_interior_ts_directives(
@@ -411,81 +412,65 @@ impl<'a> FastCheckTransformer<'a> {
       });
 
       let mut decls_vec =
-        OxcVec::with_capacity_in(var_decls.len(), self.allocator);
+        OxcVec::with_capacity_in(var_decls.len(), &self.allocator);
       for d in var_decls {
         decls_vec.push(d);
       }
 
       let var_decl_inner = OxcBox::new_in(
-        VariableDeclaration {
-          node_id: Cell::new(NodeId::DUMMY),
-          span: SPAN,
-          kind: VariableDeclarationKind::Var,
-          declarations: decls_vec,
-          declare: false,
-        },
-        self.allocator,
+        VariableDeclaration::new(
+          SPAN,
+          VariableDeclarationKind::Var,
+          decls_vec,
+          false,
+          &AstBuilder::new(self.allocator),
+        ),
+        &self.allocator,
       );
 
-      let export_named = Statement::ExportNamedDeclaration(OxcBox::new_in(
-        ExportNamedDeclaration {
-          node_id: Cell::new(NodeId::DUMMY),
-          span: SPAN,
-          declaration: Some(Declaration::VariableDeclaration(var_decl_inner)),
-          specifiers: OxcVec::new_in(self.allocator),
-          source: None,
-          export_kind: ImportOrExportKind::Value,
-          with_clause: None,
-        },
-        self.allocator,
-      ));
+      let export_named = Statement::new_export_declaration(
+        SPAN,
+        Declaration::VariableDeclaration(var_decl_inner),
+        &AstBuilder::new(self.allocator),
+      );
 
       let module_body = {
-        let mut body = OxcVec::with_capacity_in(1, self.allocator);
+        let mut body = OxcVec::with_capacity_in(1, &self.allocator);
         body.push(export_named);
         body
       };
 
-      let ts_module = TSModuleDeclaration {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-        id: TSModuleDeclarationName::Identifier(BindingIdentifier {
-          node_id: Cell::new(NodeId::DUMMY),
-          span: SPAN,
-          name: Ident::from(self.allocator.alloc_str(&id.0)),
-          symbol_id: Cell::new(None),
-        }),
-        body: Some(TSModuleDeclarationBody::TSModuleBlock(OxcBox::new_in(
-          TSModuleBlock {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
-            directives: OxcVec::new_in(self.allocator),
-            body: module_body,
-          },
-          self.allocator,
-        ))),
-        kind: TSModuleDeclarationKind::Namespace,
-        declare: false,
-        scope_id: Cell::new(None),
-      };
+      let ts_module = TSNamespaceDeclaration::new(
+        SPAN,
+        BindingIdentifier::new(
+          SPAN,
+          Ident::from(self.allocator.alloc_str(&id.0)),
+          &AstBuilder::new(self.allocator),
+        ),
+        TSNamespaceDeclarationBody::TSModuleBlock(OxcBox::new_in(
+          TSModuleBlock::new(
+            SPAN,
+            OxcVec::new_in(&self.allocator),
+            module_body,
+            &AstBuilder::new(self.allocator),
+          ),
+          &self.allocator,
+        )),
+        TSNamespaceDeclarationKind::Namespace,
+        false,
+        &AstBuilder::new(self.allocator),
+      );
 
-      let ts_module_box = OxcBox::new_in(ts_module, self.allocator);
+      let ts_module_box = OxcBox::new_in(ts_module, &self.allocator);
 
       final_body.push(if has_export_keyword {
-        Statement::ExportNamedDeclaration(OxcBox::new_in(
-          ExportNamedDeclaration {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
-            declaration: Some(Declaration::TSModuleDeclaration(ts_module_box)),
-            specifiers: OxcVec::new_in(self.allocator),
-            source: None,
-            export_kind: ImportOrExportKind::Value,
-            with_clause: None,
-          },
-          self.allocator,
-        ))
+        Statement::new_export_declaration(
+          SPAN,
+          Declaration::TSNamespaceDeclaration(ts_module_box),
+          &AstBuilder::new(self.allocator),
+        )
       } else {
-        Statement::TSModuleDeclaration(ts_module_box)
+        Statement::TSNamespaceDeclaration(ts_module_box)
       });
     }
 
@@ -525,7 +510,10 @@ impl<'a> FastCheckTransformer<'a> {
 
   fn transform_module_specifier(&mut self, src: &mut StringLiteral<'a>) {
     // only do this for relative specifiers (specifiers to specifiers within the package)
-    let specifier = src.value.as_str();
+    // a specifier containing lone surrogates can't resolve to anything
+    let Some(specifier) = src.value.as_str() else {
+      return;
+    };
     if !specifier.starts_with('.') {
       return;
     }
@@ -539,10 +527,12 @@ impl<'a> FastCheckTransformer<'a> {
     if let Some(relative) = self.specifier.make_relative(resolved_specifier) {
       if !relative.starts_with("../") {
         src.value =
-          Str::from(self.allocator.alloc_str(&format!("./{}", relative)));
+          JSStr::from(self.allocator.alloc_str(&format!("./{}", relative)));
       } else {
-        src.value = Str::from(self.allocator.alloc_str(&relative));
+        src.value = JSStr::from(self.allocator.alloc_str(&relative));
       }
+      // the raw text no longer matches the value
+      src.raw = None;
     }
   }
 
@@ -569,24 +559,30 @@ impl<'a> FastCheckTransformer<'a> {
           ))
         }
       }
-      Statement::ExportNamedDeclaration(n) => {
+      Statement::ExportDeclaration(n) => {
         let n = n.as_mut();
-        // If it has a declaration, handle it as a decl export
         let export_decl_span = n.span;
-        if let Some(decl) = n.declaration.as_mut() {
-          return self.transform_decl_stmt(
-            decl,
-            comments,
-            Some(export_decl_span),
-            is_ambient,
-          );
-        }
-        // Otherwise it's a re-export with specifiers
+        self.transform_decl_stmt(
+          &mut n.declaration,
+          comments,
+          Some(export_decl_span),
+          is_ambient,
+        )
+      }
+      Statement::ExportNamedDeclaration(n) => {
+        // `export { a, b }`
+        n.specifiers
+          .retain(|s| self.public_ranges.contains(&s.span()));
+        Ok(TransformItemResult::from_retain(!n.specifiers.is_empty()))
+      }
+      Statement::ExportFromDeclaration(n) => {
+        // `export { a, b } from "./mod.ts"`
+        let n = n.as_mut();
         n.specifiers
           .retain(|s| self.public_ranges.contains(&s.span()));
         let retain = !n.specifiers.is_empty();
-        if retain && let Some(src) = &mut n.source {
-          self.transform_module_specifier(src);
+        if retain {
+          self.transform_module_specifier(&mut n.source);
         }
         Ok(TransformItemResult::from_retain(retain))
       }
@@ -720,9 +716,17 @@ impl<'a> FastCheckTransformer<'a> {
       Statement::TSEnumDeclaration(n) => Ok(TransformItemResult::from_retain(
         self.public_ranges.contains(&n.span),
       )),
-      Statement::TSModuleDeclaration(n) => {
+      Statement::TSNamespaceDeclaration(n) => {
         let n_span = n.span;
         self.transform_ts_module(n.as_mut(), &n_span, comments, is_ambient)
+      }
+      Statement::TSExternalModuleDeclaration(n) => {
+        self.mark_diagnostic(
+          FastCheckDiagnostic::UnsupportedAmbientModule {
+            range: self.source_range_to_range(n.id.span),
+          },
+        )?;
+        Ok(TransformItemResult::Remove)
       }
       Statement::TSGlobalDeclaration(n) => {
         self.mark_diagnostic(FastCheckDiagnostic::UnsupportedGlobalModule {
@@ -816,7 +820,7 @@ impl<'a> FastCheckTransformer<'a> {
           self.public_ranges.contains(&public_span),
         ))
       }
-      Declaration::TSModuleDeclaration(n) => {
+      Declaration::TSNamespaceDeclaration(n) => {
         let is_declare = n.declare;
         self.transform_ts_module(
           n.as_mut(),
@@ -824,6 +828,14 @@ impl<'a> FastCheckTransformer<'a> {
           comments,
           is_ambient || is_declare,
         )
+      }
+      Declaration::TSExternalModuleDeclaration(n) => {
+        self.mark_diagnostic(
+          FastCheckDiagnostic::UnsupportedAmbientModule {
+            range: self.source_range_to_range(n.id.span),
+          },
+        )?;
+        Ok(TransformItemResult::Remove)
       }
       Declaration::TSGlobalDeclaration(_) => {
         self.mark_diagnostic(FastCheckDiagnostic::UnsupportedGlobalModule {
@@ -892,10 +904,10 @@ impl<'a> FastCheckTransformer<'a> {
     let mut members: Vec<ClassElement<'a>> =
       Vec::with_capacity(n.body.body.len());
     let mut had_private = false;
-    if let Some(super_class) = &n.super_class
-      && !is_expr_ident_or_member_idents(super_class)
+    if let Some(heritage) = &n.heritage
+      && !is_expr_ident_or_member_idents(&heritage.expression)
     {
-      let super_span = super_class.span();
+      let super_span = heritage.expression.span();
       self.mark_diagnostic(FastCheckDiagnostic::UnsupportedSuperClassExpr {
         range: self.source_range_to_range(super_span),
       })?;
@@ -904,7 +916,7 @@ impl<'a> FastCheckTransformer<'a> {
     let mut had_private_constructor = false;
     let mut seen_ts_private_methods = HashSet::new();
     for mut member in
-      std::mem::replace(&mut n.body.body, OxcVec::new_in(self.allocator))
+      std::mem::replace(&mut n.body.body, OxcVec::new_in(&self.allocator))
         .into_iter()
     {
       had_private = had_private
@@ -958,16 +970,16 @@ impl<'a> FastCheckTransformer<'a> {
         // surface; drop them (and their now-unused imports) like swc does.
         match &mut member {
           ClassElement::MethodDefinition(m) => {
-            m.decorators = OxcVec::new_in(self.allocator);
+            m.decorators = OxcVec::new_in(&self.allocator);
             for param in m.value.params.items.iter_mut() {
-              param.decorators = OxcVec::new_in(self.allocator);
+              param.decorators = OxcVec::new_in(&self.allocator);
             }
           }
           ClassElement::PropertyDefinition(p) => {
-            p.decorators = OxcVec::new_in(self.allocator);
+            p.decorators = OxcVec::new_in(&self.allocator);
           }
           ClassElement::AccessorProperty(a) => {
-            a.decorators = OxcVec::new_in(self.allocator);
+            a.decorators = OxcVec::new_in(&self.allocator);
           }
           _ => {}
         }
@@ -982,42 +994,41 @@ impl<'a> FastCheckTransformer<'a> {
       insert_members.insert(
         0,
         ClassElement::PropertyDefinition(OxcBox::new_in(
-          PropertyDefinition {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
-            r#type: PropertyDefinitionType::PropertyDefinition,
-            decorators: OxcVec::new_in(self.allocator),
-            key: PropertyKey::PrivateIdentifier(OxcBox::new_in(
-              PrivateIdentifier {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                name: Ident::from(self.allocator.alloc_str("private")),
-              },
-              self.allocator,
+          PropertyDefinition::new(
+            SPAN,
+            PropertyDefinitionType::PropertyDefinition,
+            OxcVec::new_in(&self.allocator),
+            PropertyKey::PrivateIdentifier(OxcBox::new_in(
+              PrivateIdentifier::new(
+                SPAN,
+                Ident::from(self.allocator.alloc_str("private")),
+                &AstBuilder::new(self.allocator),
+              ),
+              &self.allocator,
             )),
-            value: None,
-            computed: false,
-            r#static: false,
-            // `declare` is not allowed on a `#`-private member (TS18019).
-            declare: false,
-            r#override: false,
-            optional: false,
-            definite: true,
-            readonly: false,
-            type_annotation: Some(type_ann(
+            Some(type_ann(
               self.allocator,
               ts_keyword_type(self.allocator, TSKeywordKind::Unknown),
             )),
-            accessibility: None,
-          },
-          self.allocator,
+            None,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            None,
+            &AstBuilder::new(self.allocator),
+          ),
+          &self.allocator,
         )),
       );
     }
 
     let mut final_body = OxcVec::with_capacity_in(
       insert_members.len() + members.len(),
-      self.allocator,
+      &self.allocator,
     );
     for m in insert_members {
       final_body.push(m);
@@ -1026,7 +1037,7 @@ impl<'a> FastCheckTransformer<'a> {
       final_body.push(m);
     }
     n.body.body = final_body;
-    n.decorators = OxcVec::new_in(self.allocator);
+    n.decorators = OxcVec::new_in(&self.allocator);
     Ok(())
   }
 
@@ -1055,24 +1066,24 @@ impl<'a> FastCheckTransformer<'a> {
         if n.accessibility == Some(TSAccessibility::Private) {
           // Convert private method to private property definition
           *member = ClassElement::PropertyDefinition(OxcBox::new_in(
-            PropertyDefinition {
-              node_id: Cell::new(NodeId::DUMMY),
-              span: SPAN,
-              r#type: PropertyDefinitionType::PropertyDefinition,
-              decorators: OxcVec::new_in(self.allocator),
-              key: n.key.clone_in(self.allocator),
-              value: None,
-              computed: n.computed,
-              r#static: n.r#static,
-              declare: true,
-              r#override: false,
-              optional: n.optional,
-              definite: false,
-              readonly: false,
-              type_annotation: Some(any_type_ann(self.allocator)),
-              accessibility: Some(TSAccessibility::Private),
-            },
-            self.allocator,
+            PropertyDefinition::new(
+              SPAN,
+              PropertyDefinitionType::PropertyDefinition,
+              OxcVec::new_in(&self.allocator),
+              n.key.clone_in(self.allocator),
+              Some(any_type_ann(self.allocator)),
+              None,
+              n.computed,
+              n.r#static,
+              true,
+              false,
+              n.optional,
+              false,
+              false,
+              Some(TSAccessibility::Private),
+              &AstBuilder::new(self.allocator),
+            ),
+            &self.allocator,
           ));
           return Ok(true);
         }
@@ -1146,7 +1157,7 @@ impl<'a> FastCheckTransformer<'a> {
         n.declare = n.value.is_none();
         n.definite = false;
         n.r#override = n.value.is_some() && n.r#override;
-        n.decorators = OxcVec::new_in(self.allocator);
+        n.decorators = OxcVec::new_in(&self.allocator);
         Ok(true)
       }
       ClassElement::AccessorProperty(n) => {
@@ -1181,24 +1192,24 @@ impl<'a> FastCheckTransformer<'a> {
         };
         // Convert accessor to property definition
         *member = ClassElement::PropertyDefinition(OxcBox::new_in(
-          PropertyDefinition {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: n.span,
-            r#type: PropertyDefinitionType::PropertyDefinition,
-            decorators: OxcVec::new_in(self.allocator),
-            key: n.key.clone_in(self.allocator),
-            value: None,
-            computed: n.computed,
-            r#static: n.r#static,
-            declare: true,
-            r#override: false,
-            optional: false,
-            definite: false,
-            readonly: false,
-            type_annotation: Some(type_annotation),
-            accessibility: n.accessibility,
-          },
-          self.allocator,
+          PropertyDefinition::new(
+            n.span,
+            PropertyDefinitionType::PropertyDefinition,
+            OxcVec::new_in(&self.allocator),
+            n.key.clone_in(self.allocator),
+            Some(type_annotation),
+            None,
+            n.computed,
+            n.r#static,
+            true,
+            false,
+            false,
+            false,
+            false,
+            n.accessibility,
+            &AstBuilder::new(self.allocator),
+          ),
+          &self.allocator,
         ));
         Ok(true)
       }
@@ -1255,23 +1266,23 @@ impl<'a> FastCheckTransformer<'a> {
           let key = match &param.pattern {
             BindingPattern::BindingIdentifier(ident) => {
               PropertyKey::StaticIdentifier(OxcBox::new_in(
-                IdentifierName {
-                  node_id: Cell::new(NodeId::DUMMY),
-                  span: ident.span,
-                  name: ident.name,
-                },
-                self.allocator,
+                IdentifierName::new(
+                  ident.span,
+                  ident.name,
+                  &AstBuilder::new(self.allocator),
+                ),
+                &self.allocator,
               ))
             }
             BindingPattern::AssignmentPattern(assign) => match &assign.left {
               BindingPattern::BindingIdentifier(ident) => {
                 PropertyKey::StaticIdentifier(OxcBox::new_in(
-                  IdentifierName {
-                    node_id: Cell::new(NodeId::DUMMY),
-                    span: ident.span,
-                    name: ident.name,
-                  },
-                  self.allocator,
+                  IdentifierName::new(
+                    ident.span,
+                    ident.name,
+                    &AstBuilder::new(self.allocator),
+                  ),
+                  &self.allocator,
                 ))
               }
               _ => {
@@ -1339,27 +1350,27 @@ impl<'a> FastCheckTransformer<'a> {
 
           insert_members.push(ClassElement::PropertyDefinition(
             OxcBox::new_in(
-              PropertyDefinition {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                r#type: PropertyDefinitionType::PropertyDefinition,
-                decorators: OxcVec::new_in(self.allocator),
+              PropertyDefinition::new(
+                SPAN,
+                PropertyDefinitionType::PropertyDefinition,
+                OxcVec::new_in(&self.allocator),
                 key,
-                value: None,
-                computed: false,
-                r#static: false,
-                declare: true,
-                r#override: false,
-                optional: is_optional,
-                definite: false,
-                readonly: param.readonly,
                 type_annotation,
-                accessibility: match param.accessibility {
+                None,
+                false,
+                false,
+                true,
+                false,
+                is_optional,
+                false,
+                param.readonly,
+                match param.accessibility {
                   Some(TSAccessibility::Public) => None,
                   other => other,
                 },
-              },
-              self.allocator,
+                &AstBuilder::new(self.allocator),
+              ),
+              &self.allocator,
             ),
           ));
 
@@ -1371,7 +1382,7 @@ impl<'a> FastCheckTransformer<'a> {
       }
 
       if n.accessibility == Some(TSAccessibility::Private) {
-        n.value.params.as_mut().items = OxcVec::new_in(self.allocator);
+        n.value.params.as_mut().items = OxcVec::new_in(&self.allocator);
         n.value.params.as_mut().rest = None;
         return Ok(true);
       }
@@ -1381,57 +1392,54 @@ impl<'a> FastCheckTransformer<'a> {
         let params = n.value.params.as_mut();
         let items_len = params.items.len();
         let has_rest = params.rest.is_some();
-        let mut new_items = OxcVec::with_capacity_in(items_len, self.allocator);
+        let mut new_items =
+          OxcVec::with_capacity_in(items_len, &self.allocator);
         for (i, _param) in params.items.iter().enumerate() {
-          new_items.push(FormalParameter {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
-            decorators: OxcVec::new_in(self.allocator),
-            pattern: BindingPattern::BindingIdentifier(OxcBox::new_in(
-              BindingIdentifier {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                name: Ident::from(
-                  self.allocator.alloc_str(&format!("param{}", i)),
-                ),
-                symbol_id: Cell::new(None),
-              },
-              self.allocator,
+          new_items.push(FormalParameter::new(
+            SPAN,
+            OxcVec::new_in(&self.allocator),
+            BindingPattern::BindingIdentifier(OxcBox::new_in(
+              BindingIdentifier::new(
+                SPAN,
+                Ident::from(self.allocator.alloc_str(&format!("param{}", i))),
+                &AstBuilder::new(self.allocator),
+              ),
+              &self.allocator,
             )),
-            type_annotation: Some(any_type_ann(self.allocator)),
-            initializer: None,
-            optional: true,
-            accessibility: None,
-            readonly: false,
-            r#override: false,
-          });
+            Some(any_type_ann(self.allocator)),
+            None,
+            true,
+            None,
+            false,
+            false,
+            &AstBuilder::new(self.allocator),
+          ));
         }
         params.items = new_items;
         if has_rest {
           let rest_idx = items_len;
           params.rest = Some(OxcBox::new_in(
-            FormalParameterRest {
-              node_id: Cell::new(NodeId::DUMMY),
-              span: SPAN,
-              decorators: OxcVec::new_in(self.allocator),
-              rest: BindingRestElement {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                argument: BindingPattern::BindingIdentifier(OxcBox::new_in(
-                  BindingIdentifier {
-                    node_id: Cell::new(NodeId::DUMMY),
-                    span: SPAN,
-                    name: Ident::from(
+            FormalParameterRest::new(
+              SPAN,
+              OxcVec::new_in(&self.allocator),
+              BindingRestElement::new(
+                SPAN,
+                BindingPattern::BindingIdentifier(OxcBox::new_in(
+                  BindingIdentifier::new(
+                    SPAN,
+                    Ident::from(
                       self.allocator.alloc_str(&format!("param{}", rest_idx)),
                     ),
-                    symbol_id: Cell::new(None),
-                  },
-                  self.allocator,
+                    &AstBuilder::new(self.allocator),
+                  ),
+                  &self.allocator,
                 )),
-              },
-              type_annotation: Some(any_type_ann(self.allocator)),
-            },
-            self.allocator,
+                &AstBuilder::new(self.allocator),
+              ),
+              Some(any_type_ann(self.allocator)),
+              &AstBuilder::new(self.allocator),
+            ),
+            &self.allocator,
           ));
         }
       }
@@ -1443,7 +1451,7 @@ impl<'a> FastCheckTransformer<'a> {
           param,
           optional_start_index.is_optional_at_index(i),
         )?;
-        param.decorators = OxcVec::new_in(self.allocator);
+        param.decorators = OxcVec::new_in(&self.allocator);
       }
     }
 
@@ -1466,57 +1474,54 @@ impl<'a> FastCheckTransformer<'a> {
         let params = n.params.as_mut();
         let items_len = params.items.len();
         let has_rest = params.rest.is_some();
-        let mut new_items = OxcVec::with_capacity_in(items_len, self.allocator);
+        let mut new_items =
+          OxcVec::with_capacity_in(items_len, &self.allocator);
         for (i, _param) in params.items.iter().enumerate() {
-          new_items.push(FormalParameter {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
-            decorators: OxcVec::new_in(self.allocator),
-            pattern: BindingPattern::BindingIdentifier(OxcBox::new_in(
-              BindingIdentifier {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                name: Ident::from(
-                  self.allocator.alloc_str(&format!("param{}", i)),
-                ),
-                symbol_id: Cell::new(None),
-              },
-              self.allocator,
+          new_items.push(FormalParameter::new(
+            SPAN,
+            OxcVec::new_in(&self.allocator),
+            BindingPattern::BindingIdentifier(OxcBox::new_in(
+              BindingIdentifier::new(
+                SPAN,
+                Ident::from(self.allocator.alloc_str(&format!("param{}", i))),
+                &AstBuilder::new(self.allocator),
+              ),
+              &self.allocator,
             )),
-            type_annotation: Some(any_type_ann(self.allocator)),
-            initializer: None,
-            optional: true,
-            accessibility: None,
-            readonly: false,
-            r#override: false,
-          });
+            Some(any_type_ann(self.allocator)),
+            None,
+            true,
+            None,
+            false,
+            false,
+            &AstBuilder::new(self.allocator),
+          ));
         }
         params.items = new_items;
         if has_rest {
           let rest_idx = items_len;
           params.rest = Some(OxcBox::new_in(
-            FormalParameterRest {
-              node_id: Cell::new(NodeId::DUMMY),
-              span: SPAN,
-              decorators: OxcVec::new_in(self.allocator),
-              rest: BindingRestElement {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                argument: BindingPattern::BindingIdentifier(OxcBox::new_in(
-                  BindingIdentifier {
-                    node_id: Cell::new(NodeId::DUMMY),
-                    span: SPAN,
-                    name: Ident::from(
+            FormalParameterRest::new(
+              SPAN,
+              OxcVec::new_in(&self.allocator),
+              BindingRestElement::new(
+                SPAN,
+                BindingPattern::BindingIdentifier(OxcBox::new_in(
+                  BindingIdentifier::new(
+                    SPAN,
+                    Ident::from(
                       self.allocator.alloc_str(&format!("param{}", rest_idx)),
                     ),
-                    symbol_id: Cell::new(None),
-                  },
-                  self.allocator,
+                    &AstBuilder::new(self.allocator),
+                  ),
+                  &self.allocator,
                 )),
-              },
-              type_annotation: Some(any_type_ann(self.allocator)),
-            },
-            self.allocator,
+                &AstBuilder::new(self.allocator),
+              ),
+              Some(any_type_ann(self.allocator)),
+              &AstBuilder::new(self.allocator),
+            ),
+            &self.allocator,
           ));
         }
       }
@@ -1568,12 +1573,12 @@ impl<'a> FastCheckTransformer<'a> {
         body
           .statements
           .push(Statement::ReturnStatement(OxcBox::new_in(
-            ReturnStatement {
-              node_id: Cell::new(NodeId::DUMMY),
-              span: SPAN,
-              argument: Some(return_expr),
-            },
-            self.allocator,
+            ReturnStatement::new(
+              SPAN,
+              Some(return_expr),
+              &AstBuilder::new(self.allocator),
+            ),
+            &self.allocator,
           )));
       }
     }
@@ -1586,7 +1591,7 @@ impl<'a> FastCheckTransformer<'a> {
           param,
           optional_start_index.is_optional_at_index(i),
         )?;
-        param.decorators = OxcVec::new_in(self.allocator);
+        param.decorators = OxcVec::new_in(&self.allocator);
       }
     }
 
@@ -1606,15 +1611,22 @@ impl<'a> FastCheckTransformer<'a> {
     if n.return_type.is_none() {
       // arrow functions can not be generators, let's ignore
 
-      if n.expression {
-        // Arrow with expression body
-        if let Some(expr_stmt) = n.body.statements.first_mut()
-          && let Statement::ExpressionStatement(expr_s) = expr_stmt
-        {
-          let inferred_type = self.maybe_infer_type_from_expr(
-            &expr_s.expression,
-            DeclMutabilityKind::Mutable,
-          );
+      match &mut n.body {
+        ArrowFunctionBody::FunctionBody(body) => {
+          // Arrow with block body
+          self.transform_function_body_block_stmt(
+            span,
+            &mut n.return_type,
+            body,
+            FunctionKind::ExpressionLike,
+            n.r#async,
+          )?;
+        }
+        body => {
+          // Arrow with expression body
+          let expr = body.as_expression_mut().unwrap();
+          let inferred_type =
+            self.maybe_infer_type_from_expr(expr, DeclMutabilityKind::Mutable);
           match inferred_type {
             Some(t) => {
               let mut return_type_inner = t;
@@ -1625,10 +1637,8 @@ impl<'a> FastCheckTransformer<'a> {
               n.return_type = Some(type_ann(self.allocator, return_type_inner));
             }
             None => {
-              let is_expr_leavable = self.maybe_transform_expr_if_leavable(
-                &mut expr_s.expression,
-                None,
-              )?;
+              let is_expr_leavable =
+                self.maybe_transform_expr_if_leavable(expr, None)?;
               if !is_expr_leavable {
                 self.mark_diagnostic(
                   FastCheckDiagnostic::MissingExplicitReturnType {
@@ -1641,15 +1651,6 @@ impl<'a> FastCheckTransformer<'a> {
             }
           }
         }
-      } else {
-        // Arrow with block body
-        self.transform_function_body_block_stmt(
-          span,
-          &mut n.return_type,
-          &mut n.body,
-          FunctionKind::ExpressionLike,
-          n.r#async,
-        )?;
       }
     }
 
@@ -1657,35 +1658,39 @@ impl<'a> FastCheckTransformer<'a> {
       // there is an explicit return type, so we can clear the body
       let return_expr =
         replacement_return_value(self.allocator, &t.type_annotation);
-      n.body.statements.clear();
-      if let Some(e) = return_expr {
-        if n.expression {
+      match return_expr {
+        Some(e) if n.body.is_expression() => {
           // Keep as expression
-          n.body.statements.push(Statement::ExpressionStatement(
-            OxcBox::new_in(
-              ExpressionStatement {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                expression: paren_expr(self.allocator, e),
-              },
-              self.allocator,
-            ),
-          ));
-        } else {
-          n.body
-            .statements
-            .push(Statement::ReturnStatement(OxcBox::new_in(
-              ReturnStatement {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                argument: Some(paren_expr(self.allocator, e)),
-              },
-              self.allocator,
-            )));
-          n.expression = false;
+          n.body = ArrowFunctionBody::from(paren_expr(self.allocator, e));
         }
-      } else {
-        n.expression = false;
+        Some(e) => {
+          let mut statements = OxcVec::with_capacity_in(1, &self.allocator);
+          statements.push(Statement::new_return_statement(
+            SPAN,
+            Some(paren_expr(self.allocator, e)),
+            &AstBuilder::new(self.allocator),
+          ));
+          n.body = ArrowFunctionBody::FunctionBody(OxcBox::new_in(
+            FunctionBody::new(
+              SPAN,
+              OxcVec::new_in(&self.allocator),
+              statements,
+              &AstBuilder::new(self.allocator),
+            ),
+            &self.allocator,
+          ));
+        }
+        None => {
+          n.body = ArrowFunctionBody::FunctionBody(OxcBox::new_in(
+            FunctionBody::new(
+              SPAN,
+              OxcVec::new_in(&self.allocator),
+              OxcVec::new_in(&self.allocator),
+              &AstBuilder::new(self.allocator),
+            ),
+            &self.allocator,
+          ));
+        }
       }
 
       // Only reset is_async if there is an explicit return type
@@ -1780,24 +1785,24 @@ impl<'a> FastCheckTransformer<'a> {
                 if !is_optional {
                   let inner_type = ta.type_annotation.clone_in(self.allocator);
                   let union_type = TSType::TSUnionType(OxcBox::new_in(
-                    TSUnionType {
-                      node_id: Cell::new(NodeId::DUMMY),
-                      span: SPAN,
-                      types: {
+                    TSUnionType::new(
+                      SPAN,
+                      {
                         let mut types =
-                          OxcVec::with_capacity_in(2, self.allocator);
+                          OxcVec::with_capacity_in(2, &self.allocator);
                         types.push(inner_type);
                         types.push(TSType::TSUndefinedKeyword(OxcBox::new_in(
-                          TSUndefinedKeyword {
-                            node_id: Cell::new(NodeId::DUMMY),
-                            span: SPAN,
-                          },
-                          self.allocator,
+                          TSUndefinedKeyword::new(
+                            SPAN,
+                            &AstBuilder::new(self.allocator),
+                          ),
+                          &self.allocator,
                         )));
                         types
                       },
-                    },
-                    self.allocator,
+                      &AstBuilder::new(self.allocator),
+                    ),
+                    &self.allocator,
                   ));
                   param.type_annotation =
                     Some(type_ann(self.allocator, union_type));
@@ -1840,23 +1845,23 @@ impl<'a> FastCheckTransformer<'a> {
           } else if let Some(ta) = param.type_annotation.take() {
             let inner_type = ta.type_annotation.clone_in(self.allocator);
             let union_type = TSType::TSUnionType(OxcBox::new_in(
-              TSUnionType {
-                node_id: Cell::new(NodeId::DUMMY),
-                span: SPAN,
-                types: {
-                  let mut types = OxcVec::with_capacity_in(2, self.allocator);
+              TSUnionType::new(
+                SPAN,
+                {
+                  let mut types = OxcVec::with_capacity_in(2, &self.allocator);
                   types.push(inner_type);
                   types.push(TSType::TSUndefinedKeyword(OxcBox::new_in(
-                    TSUndefinedKeyword {
-                      node_id: Cell::new(NodeId::DUMMY),
-                      span: SPAN,
-                    },
-                    self.allocator,
+                    TSUndefinedKeyword::new(
+                      SPAN,
+                      &AstBuilder::new(self.allocator),
+                    ),
+                    &self.allocator,
                   )));
                   types
                 },
-              },
-              self.allocator,
+                &AstBuilder::new(self.allocator),
+              ),
+              &self.allocator,
             ));
             param.type_annotation = Some(type_ann(self.allocator, union_type));
           }
@@ -1871,7 +1876,7 @@ impl<'a> FastCheckTransformer<'a> {
           array_as_never_expr(self.allocator),
         )?;
         if let BindingPattern::ArrayPattern(p) = &mut param.pattern {
-          p.elements = OxcVec::new_in(self.allocator);
+          p.elements = OxcVec::new_in(&self.allocator);
         }
       }
       BindingPattern::ObjectPattern(_) => {
@@ -1880,7 +1885,7 @@ impl<'a> FastCheckTransformer<'a> {
           obj_as_never_expr(self.allocator),
         )?;
         if let BindingPattern::ObjectPattern(p) = &mut param.pattern {
-          p.properties = OxcVec::new_in(self.allocator);
+          p.properties = OxcVec::new_in(&self.allocator);
         }
       }
     }
@@ -1903,7 +1908,7 @@ impl<'a> FastCheckTransformer<'a> {
       // param stays optional without referencing pruned bindings.
       if param.initializer.is_some() {
         param.initializer =
-          Some(OxcBox::new_in(never_placeholder, self.allocator));
+          Some(OxcBox::new_in(never_placeholder, &self.allocator));
       }
     } else {
       // Untyped destructured param: a leavable default lets us avoid an
@@ -1962,24 +1967,24 @@ impl<'a> FastCheckTransformer<'a> {
               if !is_optional {
                 let inner_type = ta.type_annotation.clone_in(self.allocator);
                 let union_type = TSType::TSUnionType(OxcBox::new_in(
-                  TSUnionType {
-                    node_id: Cell::new(NodeId::DUMMY),
-                    span: SPAN,
-                    types: {
+                  TSUnionType::new(
+                    SPAN,
+                    {
                       let mut types =
-                        OxcVec::with_capacity_in(2, self.allocator);
+                        OxcVec::with_capacity_in(2, &self.allocator);
                       types.push(inner_type);
                       types.push(TSType::TSUndefinedKeyword(OxcBox::new_in(
-                        TSUndefinedKeyword {
-                          node_id: Cell::new(NodeId::DUMMY),
-                          span: SPAN,
-                        },
-                        self.allocator,
+                        TSUndefinedKeyword::new(
+                          SPAN,
+                          &AstBuilder::new(self.allocator),
+                        ),
+                        &self.allocator,
                       )));
                       types
                     },
-                  },
-                  self.allocator,
+                    &AstBuilder::new(self.allocator),
+                  ),
+                  &self.allocator,
                 ));
                 param.type_annotation =
                   Some(type_ann(self.allocator, union_type));
@@ -2031,23 +2036,24 @@ impl<'a> FastCheckTransformer<'a> {
             if let Some(ta) = param.type_annotation.take() {
               let inner_type = ta.type_annotation.clone_in(self.allocator);
               let union_type = TSType::TSUnionType(OxcBox::new_in(
-                TSUnionType {
-                  node_id: Cell::new(NodeId::DUMMY),
-                  span: SPAN,
-                  types: {
-                    let mut types = OxcVec::with_capacity_in(2, self.allocator);
+                TSUnionType::new(
+                  SPAN,
+                  {
+                    let mut types =
+                      OxcVec::with_capacity_in(2, &self.allocator);
                     types.push(inner_type);
                     types.push(TSType::TSUndefinedKeyword(OxcBox::new_in(
-                      TSUndefinedKeyword {
-                        node_id: Cell::new(NodeId::DUMMY),
-                        span: SPAN,
-                      },
-                      self.allocator,
+                      TSUndefinedKeyword::new(
+                        SPAN,
+                        &AstBuilder::new(self.allocator),
+                      ),
+                      &self.allocator,
                     )));
                     types
                   },
-                },
-                self.allocator,
+                  &AstBuilder::new(self.allocator),
+                ),
+                &self.allocator,
               ));
               param.type_annotation =
                 Some(type_ann(self.allocator, union_type));
@@ -2082,7 +2088,7 @@ impl<'a> FastCheckTransformer<'a> {
         if let BindingPattern::AssignmentPattern(assign) = &mut param.pattern
           && let BindingPattern::ArrayPattern(p) = &mut assign.left
         {
-          p.elements = OxcVec::new_in(self.allocator);
+          p.elements = OxcVec::new_in(&self.allocator);
         }
       }
       2 => {
@@ -2105,7 +2111,7 @@ impl<'a> FastCheckTransformer<'a> {
         if let BindingPattern::AssignmentPattern(assign) = &mut param.pattern
           && let BindingPattern::ObjectPattern(p) = &mut assign.left
         {
-          p.properties = OxcVec::new_in(self.allocator);
+          p.properties = OxcVec::new_in(&self.allocator);
         }
       }
       _ => {
@@ -2206,39 +2212,12 @@ impl<'a> FastCheckTransformer<'a> {
 
   fn transform_ts_module(
     &mut self,
-    n: &mut TSModuleDeclaration<'a>,
+    n: &mut TSNamespaceDeclaration<'a>,
     public_span: &Span,
     comments: &mut CommentsMut<'a>,
     is_ambient: bool,
   ) -> Result<TransformItemResult, Vec<FastCheckDiagnostic>> {
-    match &n.id {
-      TSModuleDeclarationName::Identifier(_) => {
-        // ok
-      }
-      TSModuleDeclarationName::StringLiteral(_) => {
-        // not ok
-        let id_span = n.id.span();
-        self.mark_diagnostic(
-          FastCheckDiagnostic::UnsupportedAmbientModule {
-            range: self.source_range_to_range(id_span),
-          },
-        )?;
-        return Ok(TransformItemResult::Remove);
-      }
-    }
-
-    let ts_module_block = match &mut n.body {
-      Some(body) => get_innermost_module_block(body),
-      None => {
-        let id_span = n.id.span();
-        self.mark_diagnostic(
-          FastCheckDiagnostic::UnsupportedAmbientModule {
-            range: self.source_range_to_range(id_span),
-          },
-        )?;
-        return Ok(TransformItemResult::Remove);
-      }
-    };
+    let ts_module_block = get_innermost_module_block(&mut n.body);
 
     // allow the above diagnostics to error before checking for a public range
     if !self.public_ranges.contains(public_span) {
@@ -2247,12 +2226,12 @@ impl<'a> FastCheckTransformer<'a> {
 
     let body: Vec<Statement<'a>> = std::mem::replace(
       &mut ts_module_block.body,
-      OxcVec::new_in(self.allocator),
+      OxcVec::new_in(&self.allocator),
     )
     .into_iter()
     .collect();
     let new_body = self.transform_module_body(body, comments, is_ambient)?;
-    ts_module_block.body = OxcVec::from_iter_in(new_body, self.allocator);
+    ts_module_block.body = OxcVec::from_iter_in(new_body, &self.allocator);
 
     Ok(TransformItemResult::Retain)
   }
@@ -2301,23 +2280,21 @@ impl<'a> FastCheckTransformer<'a> {
       }
     } else {
       let var_decls = self.expando_namespaces.entry(obj_id).or_default();
-      var_decls.push(VariableDeclarator {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-        kind: VariableDeclarationKind::Var,
-        id: BindingPattern::BindingIdentifier(OxcBox::new_in(
-          BindingIdentifier {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: prop_span,
-            name: Ident::from(self.allocator.alloc_str(&prop_name)),
-            symbol_id: Cell::new(None),
-          },
-          self.allocator,
+      var_decls.push(VariableDeclarator::new(
+        SPAN,
+        BindingPattern::BindingIdentifier(OxcBox::new_in(
+          BindingIdentifier::new(
+            prop_span,
+            Ident::from(self.allocator.alloc_str(&prop_name)),
+            &AstBuilder::new(self.allocator),
+          ),
+          &self.allocator,
         )),
-        type_annotation: None,
-        init: Some(n.right.clone_in(self.allocator)),
-        definite: false,
-      });
+        None,
+        Some(n.right.clone_in(self.allocator)),
+        false,
+        &AstBuilder::new(self.allocator),
+      ));
     }
     Ok(TransformItemResult::Remove)
   }
@@ -2352,7 +2329,7 @@ impl<'a> FastCheckTransformer<'a> {
         };
         match &member.expression {
           Expression::StringLiteral(s) => {
-            let prop_name = s.value.to_string();
+            let prop_name = s.value.to_string_lossy();
             if !is_valid_js_ident(&prop_name) {
               return None;
             }
@@ -2519,7 +2496,7 @@ impl<'a> FastCheckTransformer<'a> {
         true
       }
       Expression::ClassExpression(n) => {
-        let empty_comments = OxcVec::new_in(self.allocator);
+        let empty_comments = OxcVec::new_in(&self.allocator);
         let mut comments =
           CommentsMut::new(self.allocator, &empty_comments, "");
         self.transform_class(n, &mut comments, false)?;
@@ -2538,7 +2515,8 @@ impl<'a> FastCheckTransformer<'a> {
       }
       Expression::TaggedTemplateExpression(_)
       | Expression::YieldExpression(_)
-      | Expression::MetaProperty(_)
+      | Expression::ImportMeta(_)
+      | Expression::NewTarget(_)
       | Expression::JSXElement(_)
       | Expression::JSXFragment(_)
       | Expression::TSInstantiationExpression(_)
@@ -2580,16 +2558,16 @@ impl<'a> FastCheckTransformer<'a> {
       Expression::CallExpression(call_expr) => {
         if self.is_call_expr_symbol_create(call_expr) {
           Some(TSType::TSTypeOperatorType(OxcBox::new_in(
-            TSTypeOperator {
-              node_id: Cell::new(NodeId::DUMMY),
-              span: SPAN,
-              operator: TSTypeOperatorOperator::Unique,
-              type_annotation: TSType::TSTypeReference(OxcBox::new_in(
+            TSTypeOperator::new(
+              SPAN,
+              TSTypeOperatorOperator::Unique,
+              TSType::TSTypeReference(OxcBox::new_in(
                 super::helpers::type_ref(self.allocator, "symbol"),
-                self.allocator,
+                &self.allocator,
               )),
-            },
-            self.allocator,
+              &AstBuilder::new(self.allocator),
+            ),
+            &self.allocator,
           )))
         } else {
           None
@@ -2656,31 +2634,30 @@ impl<'a> FastCheckTransformer<'a> {
       return ty;
     }
 
-    let mut params = OxcVec::with_capacity_in(1, self.allocator);
+    let mut params = OxcVec::with_capacity_in(1, &self.allocator);
     params.push(ty);
     TSType::TSTypeReference(OxcBox::new_in(
-      TSTypeReference {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-        type_name: TSTypeName::IdentifierReference(OxcBox::new_in(
-          IdentifierReference {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
-            name: Ident::from(self.allocator.alloc_str("Promise")),
-            reference_id: Cell::new(None),
-          },
-          self.allocator,
+      TSTypeReference::new(
+        SPAN,
+        TSTypeName::IdentifierReference(OxcBox::new_in(
+          IdentifierReference::new(
+            SPAN,
+            Ident::from(self.allocator.alloc_str("Promise")),
+            &AstBuilder::new(self.allocator),
+          ),
+          &self.allocator,
         )),
-        type_arguments: Some(OxcBox::new_in(
-          TSTypeParameterInstantiation {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
+        Some(OxcBox::new_in(
+          TSTypeParameterInstantiation::new(
+            SPAN,
             params,
-          },
-          self.allocator,
+            &AstBuilder::new(self.allocator),
+          ),
+          &self.allocator,
         )),
-      },
-      self.allocator,
+        &AstBuilder::new(self.allocator),
+      ),
+      &self.allocator,
     ))
   }
 }
@@ -2733,7 +2710,7 @@ fn is_computed_property_key(key: &PropertyKey) -> bool {
 fn property_key_to_string(key: &PropertyKey) -> Option<String> {
   match key {
     PropertyKey::StaticIdentifier(ident) => Some(ident.name.to_string()),
-    PropertyKey::StringLiteral(s) => Some(s.value.to_string()),
+    PropertyKey::StringLiteral(s) => Some(s.value.to_string_lossy()),
     PropertyKey::NumericLiteral(n) => Some(n.value.to_string()),
     PropertyKey::BigIntLiteral(n) => n.raw.as_ref().map(|r| r.to_string()),
     PropertyKey::PrivateIdentifier(p) => Some(p.name.to_string()),
@@ -2747,31 +2724,30 @@ fn void_or_promise_void<'a>(
 ) -> TSType<'a> {
   let void_type = ts_keyword_type(allocator, TSKeywordKind::Void);
   if is_async {
-    let mut params = OxcVec::with_capacity_in(1, allocator);
+    let mut params = OxcVec::with_capacity_in(1, &allocator);
     params.push(void_type);
     TSType::TSTypeReference(OxcBox::new_in(
-      TSTypeReference {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-        type_name: TSTypeName::IdentifierReference(OxcBox::new_in(
-          IdentifierReference {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
-            name: Ident::from(allocator.alloc_str("Promise")),
-            reference_id: Cell::new(None),
-          },
-          allocator,
+      TSTypeReference::new(
+        SPAN,
+        TSTypeName::IdentifierReference(OxcBox::new_in(
+          IdentifierReference::new(
+            SPAN,
+            Ident::from(allocator.alloc_str("Promise")),
+            &AstBuilder::new(allocator),
+          ),
+          &allocator,
         )),
-        type_arguments: Some(OxcBox::new_in(
-          TSTypeParameterInstantiation {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: SPAN,
+        Some(OxcBox::new_in(
+          TSTypeParameterInstantiation::new(
+            SPAN,
             params,
-          },
-          allocator,
+            &AstBuilder::new(allocator),
+          ),
+          &allocator,
         )),
-      },
-      allocator,
+        &AstBuilder::new(allocator),
+      ),
+      &allocator,
     ))
   } else {
     void_type
@@ -2823,29 +2799,29 @@ fn infer_simple_type_from_type<'a>(
       let type_arguments = match &type_ref.type_arguments {
         Some(type_args) => {
           let mut params =
-            OxcVec::with_capacity_in(type_args.params.len(), allocator);
+            OxcVec::with_capacity_in(type_args.params.len(), &allocator);
           for param in &type_args.params {
             params.push(infer_simple_type_from_type(allocator, param)?);
           }
           Some(OxcBox::new_in(
-            TSTypeParameterInstantiation {
-              node_id: Cell::new(NodeId::DUMMY),
-              span: type_args.span,
+            TSTypeParameterInstantiation::new(
+              type_args.span,
               params,
-            },
-            allocator,
+              &AstBuilder::new(allocator),
+            ),
+            &allocator,
           ))
         }
         None => None,
       };
       Some(TSType::TSTypeReference(OxcBox::new_in(
-        TSTypeReference {
-          node_id: Cell::new(NodeId::DUMMY),
-          span: type_ref.span,
-          type_name: type_ref.type_name.clone_in(allocator),
+        TSTypeReference::new(
+          type_ref.span,
+          type_ref.type_name.clone_in(allocator),
           type_arguments,
-        },
-        allocator,
+          &AstBuilder::new(allocator),
+        ),
+        &allocator,
       )))
     }
     TSType::TSTypeQuery(_) => None,
@@ -2854,7 +2830,7 @@ fn infer_simple_type_from_type<'a>(
     }
     TSType::TSTupleType(t) => {
       let mut elems =
-        OxcVec::with_capacity_in(t.element_types.len(), allocator);
+        OxcVec::with_capacity_in(t.element_types.len(), &allocator);
       for elem in &t.element_types {
         // TSTupleElement shares the same structure as TSType via @inherit
         let elem_as_type = tuple_element_to_type(elem)?;
@@ -2862,54 +2838,38 @@ fn infer_simple_type_from_type<'a>(
         elems.push(super::helpers::ts_tuple_element(inferred));
       }
       Some(TSType::TSTupleType(OxcBox::new_in(
-        TSTupleType {
-          node_id: Cell::new(NodeId::DUMMY),
-          span: t.span,
-          element_types: elems,
-        },
-        allocator,
+        TSTupleType::new(t.span, elems, &AstBuilder::new(allocator)),
+        &allocator,
       )))
     }
     TSType::TSArrayType(t) => {
       infer_simple_type_from_type(allocator, &t.element_type).map(|inner| {
         TSType::TSArrayType(OxcBox::new_in(
-          TSArrayType {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: t.span,
-            element_type: inner,
-          },
-          allocator,
+          TSArrayType::new(t.span, inner, &AstBuilder::new(allocator)),
+          &allocator,
         ))
       })
     }
     TSType::TSUnionType(t) => {
-      let mut types = OxcVec::with_capacity_in(t.types.len(), allocator);
+      let mut types = OxcVec::with_capacity_in(t.types.len(), &allocator);
       for ty in &t.types {
         let inferred_type = infer_simple_type_from_type(allocator, ty)?;
         types.push(inferred_type);
       }
       Some(TSType::TSUnionType(OxcBox::new_in(
-        TSUnionType {
-          node_id: Cell::new(NodeId::DUMMY),
-          span: t.span,
-          types,
-        },
-        allocator,
+        TSUnionType::new(t.span, types, &AstBuilder::new(allocator)),
+        &allocator,
       )))
     }
     TSType::TSIntersectionType(t) => {
-      let mut types = OxcVec::with_capacity_in(t.types.len(), allocator);
+      let mut types = OxcVec::with_capacity_in(t.types.len(), &allocator);
       for ty in &t.types {
         let inferred_type = infer_simple_type_from_type(allocator, ty)?;
         types.push(inferred_type);
       }
       Some(TSType::TSIntersectionType(OxcBox::new_in(
-        TSIntersectionType {
-          node_id: Cell::new(NodeId::DUMMY),
-          span: t.span,
-          types,
-        },
-        allocator,
+        TSIntersectionType::new(t.span, types, &AstBuilder::new(allocator)),
+        &allocator,
       )))
     }
     TSType::TSConditionalType(_) => None,
@@ -2917,25 +2877,21 @@ fn infer_simple_type_from_type<'a>(
     TSType::TSParenthesizedType(t) => {
       infer_simple_type_from_type(allocator, &t.type_annotation).map(|inner| {
         TSType::TSParenthesizedType(OxcBox::new_in(
-          TSParenthesizedType {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: t.span,
-            type_annotation: inner,
-          },
-          allocator,
+          TSParenthesizedType::new(t.span, inner, &AstBuilder::new(allocator)),
+          &allocator,
         ))
       })
     }
     TSType::TSTypeOperatorType(t) => {
       infer_simple_type_from_type(allocator, &t.type_annotation).map(|inner| {
         TSType::TSTypeOperatorType(OxcBox::new_in(
-          TSTypeOperator {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: t.span,
-            operator: t.operator,
-            type_annotation: inner,
-          },
-          allocator,
+          TSTypeOperator::new(
+            t.span,
+            t.operator,
+            inner,
+            &AstBuilder::new(allocator),
+          ),
+          &allocator,
         ))
       })
     }
@@ -2956,14 +2912,14 @@ fn infer_simple_type_from_type<'a>(
       infer_simple_type_from_type(allocator, &inner).map(|inferred| {
         // Wrap back as named tuple member
         TSType::TSNamedTupleMember(OxcBox::new_in(
-          TSNamedTupleMember {
-            node_id: Cell::new(NodeId::DUMMY),
-            span: t.span,
-            element_type: super::helpers::ts_tuple_element(inferred),
-            label: t.label.clone_in(allocator),
-            optional: t.optional,
-          },
-          allocator,
+          TSNamedTupleMember::new(
+            t.span,
+            t.label.clone_in(allocator),
+            super::helpers::ts_tuple_element(inferred),
+            t.optional,
+            &AstBuilder::new(allocator),
+          ),
+          &allocator,
         ))
       })
     }
@@ -3064,45 +3020,42 @@ fn array_as_never_array_expr<'a>(allocator: &'a Allocator) -> Expression<'a> {
     allocator,
     empty_array_lit_expr(allocator),
     TSType::TSArrayType(OxcBox::new_in(
-      TSArrayType {
-        node_id: Cell::new(NodeId::DUMMY),
-        span: SPAN,
-        element_type: ts_never_type(allocator),
-      },
-      allocator,
+      TSArrayType::new(
+        SPAN,
+        ts_never_type(allocator),
+        &AstBuilder::new(allocator),
+      ),
+      &allocator,
     )),
   )
 }
 
 fn ts_never_type<'a>(allocator: &'a Allocator) -> TSType<'a> {
   TSType::TSNeverKeyword(OxcBox::new_in(
-    TSNeverKeyword {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-    },
-    allocator,
+    TSNeverKeyword::new(SPAN, &AstBuilder::new(allocator)),
+    &allocator,
   ))
 }
 
 fn empty_array_lit_expr<'a>(allocator: &'a Allocator) -> Expression<'a> {
   Expression::ArrayExpression(OxcBox::new_in(
-    ArrayExpression {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-      elements: OxcVec::new_in(allocator),
-    },
-    allocator,
+    ArrayExpression::new(
+      SPAN,
+      OxcVec::new_in(&allocator),
+      &AstBuilder::new(allocator),
+    ),
+    &allocator,
   ))
 }
 
 fn empty_obj_lit_expr<'a>(allocator: &'a Allocator) -> Expression<'a> {
   Expression::ObjectExpression(OxcBox::new_in(
-    ObjectExpression {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-      properties: OxcVec::new_in(allocator),
-    },
-    allocator,
+    ObjectExpression::new(
+      SPAN,
+      OxcVec::new_in(&allocator),
+      &AstBuilder::new(allocator),
+    ),
+    &allocator,
   ))
 }
 
@@ -3120,13 +3073,13 @@ fn as_expr<'a>(
   type_annotation: TSType<'a>,
 ) -> Expression<'a> {
   Expression::TSAsExpression(OxcBox::new_in(
-    TSAsExpression {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-      expression: expr,
+    TSAsExpression::new(
+      SPAN,
+      expr,
       type_annotation,
-    },
-    allocator,
+      &AstBuilder::new(allocator),
+    ),
+    &allocator,
   ))
 }
 
@@ -3135,12 +3088,8 @@ fn paren_expr<'a>(
   expr: Expression<'a>,
 ) -> Expression<'a> {
   Expression::ParenthesizedExpression(OxcBox::new_in(
-    ParenthesizedExpression {
-      node_id: Cell::new(NodeId::DUMMY),
-      span: SPAN,
-      expression: expr,
-    },
-    allocator,
+    ParenthesizedExpression::new(SPAN, expr, &AstBuilder::new(allocator)),
+    &allocator,
   ))
 }
 
@@ -3235,13 +3184,20 @@ fn collect_ident_refs_in_expr<'a>(
     Expression::TSNonNullExpression(n) => {
       collect_ident_refs_in_expr(&n.expression, callback);
     }
-    Expression::ArrowFunctionExpression(n) => {
-      for stmt in &n.body.statements {
-        if let Statement::ExpressionStatement(e) = stmt {
-          collect_ident_refs_in_expr(&e.expression, callback);
+    Expression::ArrowFunctionExpression(n) => match &n.body {
+      ArrowFunctionBody::FunctionBody(body) => {
+        for stmt in &body.statements {
+          if let Statement::ExpressionStatement(e) = stmt {
+            collect_ident_refs_in_expr(&e.expression, callback);
+          }
         }
       }
-    }
+      body => {
+        if let Some(e) = body.as_expression() {
+          collect_ident_refs_in_expr(e, callback);
+        }
+      }
+    },
     Expression::SequenceExpression(n) => {
       for expr in &n.expressions {
         collect_ident_refs_in_expr(expr, callback);
@@ -3258,16 +3214,12 @@ fn collect_ident_refs_in_expr<'a>(
 // GetSpan from the oxc_ast crate (imported via deno_ast::oxc::span::GetSpan).
 
 fn get_innermost_module_block<'a, 'b>(
-  body: &'b mut TSModuleDeclarationBody<'a>,
+  body: &'b mut TSNamespaceDeclarationBody<'a>,
 ) -> &'b mut TSModuleBlock<'a> {
   match body {
-    TSModuleDeclarationBody::TSModuleBlock(block) => block.as_mut(),
-    TSModuleDeclarationBody::TSModuleDeclaration(decl) => {
-      if let Some(inner_body) = &mut decl.body {
-        get_innermost_module_block(inner_body)
-      } else {
-        unreachable!("TSModuleDeclaration without body")
-      }
+    TSNamespaceDeclarationBody::TSModuleBlock(block) => block.as_mut(),
+    TSNamespaceDeclarationBody::TSNamespaceDeclaration(decl) => {
+      get_innermost_module_block(&mut decl.body)
     }
   }
 }

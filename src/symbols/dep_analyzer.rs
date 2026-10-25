@@ -1,5 +1,6 @@
 // Copyright 2018-2024 the Deno authors. MIT license.
 
+use deno_ast::JSStrExt;
 use deno_ast::oxc::ast::ast::AccessorProperty;
 use deno_ast::oxc::ast::ast::ArrowFunctionExpression;
 use deno_ast::oxc::ast::ast::BindingIdentifier;
@@ -354,9 +355,7 @@ impl DepsFiller<'_> {
 
 impl<'a> Visit<'a> for DepsFiller<'_> {
   fn visit_ts_index_signature(&mut self, n: &TSIndexSignature<'a>) {
-    for param in &n.parameters {
-      self.visit_ts_type_annotation(&param.type_annotation);
-    }
+    self.visit_ts_type_annotation(&n.parameter.type_annotation);
     self.visit_ts_type_annotation(&n.type_annotation);
   }
 
@@ -449,11 +448,11 @@ impl<'a> Visit<'a> for DepsFiller<'_> {
     if let Some(type_params) = &n.type_parameters {
       self.visit_ts_type_parameter_declaration(type_params);
     }
-    if let Some(expr) = &n.super_class {
-      self.visit_expression(expr);
-    }
-    if let Some(type_params) = &n.super_type_arguments {
-      self.visit_ts_type_parameter_instantiation(type_params);
+    if let Some(heritage) = &n.heritage {
+      self.visit_expression(&heritage.expression);
+      if let Some(type_params) = &heritage.type_arguments {
+        self.visit_ts_type_parameter_instantiation(type_params);
+      }
     }
     for expr in &n.implements {
       self.visit_ts_class_implements(expr);
@@ -493,16 +492,9 @@ impl<'a> Visit<'a> for DepsFiller<'_> {
     }
     if let Some(return_type) = &n.return_type {
       self.visit_ts_type_annotation(return_type);
-    } else if n.expression {
-      // Arrow with expression body and no return type annotation -
-      // the body has a single expression statement
-      if let Some(stmt) = n.body.statements.first()
-        && let deno_ast::oxc::ast::ast::Statement::ExpressionStatement(
-          expr_stmt,
-        ) = stmt
-      {
-        self.visit_expression(&expr_stmt.expression);
-      }
+    } else if let Some(expr) = n.body.as_expression() {
+      // Arrow with expression body and no return type annotation
+      self.visit_expression(expr);
     }
   }
 
@@ -577,7 +569,7 @@ impl<'a> Visit<'a> for DepsFiller<'_> {
     // an `extends` target may resolve to either a class value or an interface
     // type, so treat the reference as belonging to both.
     self.with_context(ReferenceNamespace::Both, |filler| {
-      filler.visit_expression(&n.expression);
+      filler.visit_ts_type_name(&n.type_name);
     });
   }
 
@@ -672,7 +664,10 @@ impl<'a> Visit<'a> for DepsFiller<'_> {
       Some(qualifier) => ts_import_type_qualifier_to_parts(qualifier),
       None => Vec::new(),
     };
-    self.push_dep(SymbolNodeDep::ImportType(n.source.value.to_string(), parts));
+    self.push_dep(SymbolNodeDep::ImportType(
+      n.source.value.to_string_lossy(),
+      parts,
+    ));
     if let Some(type_args) = &n.type_arguments {
       self.visit_ts_type_parameter_instantiation(type_args);
     }
@@ -786,7 +781,7 @@ fn member_expr_into_id_and_parts(
         Some(format!("#{}", m.field.name))
       }
       MemberExpression::ComputedMemberExpression(m) => match &m.expression {
-        Expression::StringLiteral(s) => Some(s.value.to_string()),
+        Expression::StringLiteral(s) => Some(s.value.to_string_lossy()),
         _ => None,
       },
     }

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use deno_ast::Comment;
+use deno_ast::JSStrExt;
 use deno_ast::MediaType;
 use deno_ast::ModuleSpecifier;
 use deno_ast::ParsedSource;
@@ -261,7 +262,7 @@ impl<'a> RootSymbol<'a> {
     let source_text = source.text().clone();
     let source_text_info = source.text_info_lazy().clone();
     let media_type = source.media_type();
-    let comments: Vec<Comment> = source.comments().iter().copied().collect();
+    let comments: Vec<Comment> = source.comments().to_vec();
     // Preserve the semantic symbol/reference ids when moving the program into
     // the analyzer's allocator so they stay in sync with `scoping`.
     let program: &'a Program<'a> = self
@@ -506,7 +507,7 @@ enum SymbolNodeInnerExportDecl<'a> {
   ),
   TsEnum(&'a TSEnumDeclaration<'a>),
   TsInterface(&'a TSInterfaceDeclaration<'a>),
-  TsNamespace(&'a TSModuleDeclaration<'a>),
+  TsNamespace(&'a TSNamespaceDeclaration<'a>),
   TsTypeAlias(&'a TSTypeAliasDeclaration<'a>),
   TsImportEquals(&'a TSImportEqualsDeclaration<'a>),
 }
@@ -516,15 +517,12 @@ enum SymbolNodeInner<'a> {
   Json,
   Module(Span),
   ClassDecl(&'a Class<'a>),
-  ExportDecl(
-    &'a ExportNamedDeclaration<'a>,
-    SymbolNodeInnerExportDecl<'a>,
-  ),
+  ExportDecl(&'a ExportDeclaration<'a>, SymbolNodeInnerExportDecl<'a>),
   ExportDefaultDecl(&'a ExportDefaultDeclaration<'a>),
   ExportDefaultExpr(&'a ExportDefaultDeclarationKind<'a>),
   FnDecl(&'a Function<'a>),
   TsEnum(&'a TSEnumDeclaration<'a>),
-  TsNamespace(&'a TSModuleDeclaration<'a>),
+  TsNamespace(&'a TSNamespaceDeclaration<'a>),
   TsTypeAlias(&'a TSTypeAliasDeclaration<'a>),
   TsInterface(&'a TSInterfaceDeclaration<'a>),
   Var(
@@ -563,7 +561,7 @@ pub enum ExportDeclRef<'a> {
   ),
   TsEnum(&'a TSEnumDeclaration<'a>),
   TsInterface(&'a TSInterfaceDeclaration<'a>),
-  TsModule(&'a TSModuleDeclaration<'a>),
+  TsModule(&'a TSNamespaceDeclaration<'a>),
   TsTypeAlias(&'a TSTypeAliasDeclaration<'a>),
   TsImportEquals(&'a TSImportEqualsDeclaration<'a>),
 }
@@ -571,14 +569,14 @@ pub enum ExportDeclRef<'a> {
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolNodeRef<'a> {
   Module(Span),
-  ExportDecl(&'a ExportNamedDeclaration<'a>, ExportDeclRef<'a>),
+  ExportDecl(&'a ExportDeclaration<'a>, ExportDeclRef<'a>),
   ExportDefaultDecl(&'a ExportDefaultDeclaration<'a>),
   ExportDefaultExpr(&'a ExportDefaultDeclarationKind<'a>),
   ClassDecl(&'a Class<'a>),
   FnDecl(&'a Function<'a>),
   TsEnum(&'a TSEnumDeclaration<'a>),
   TsInterface(&'a TSInterfaceDeclaration<'a>),
-  TsNamespace(&'a TSModuleDeclaration<'a>),
+  TsNamespace(&'a TSNamespaceDeclaration<'a>),
   TsTypeAlias(&'a TSTypeAliasDeclaration<'a>),
   Var(
     &'a VariableDeclaration<'a>,
@@ -609,15 +607,6 @@ pub enum SymbolNodeRef<'a> {
 impl<'a> SymbolNodeRef<'a> {
   /// The local name of the node, if it has a name.
   pub fn maybe_name(&self) -> Option<Cow<'a, str>> {
-    fn ts_module_name_to_string<'b>(
-      module_name: &'b TSModuleDeclarationName<'b>,
-    ) -> &'b str {
-      match module_name {
-        TSModuleDeclarationName::Identifier(ident) => &ident.name,
-        TSModuleDeclarationName::StringLiteral(str) => &str.value,
-      }
-    }
-
     fn maybe_property_key_name<'b>(
       key: &'b PropertyKey<'b>,
     ) -> Option<Cow<'b, str>> {
@@ -628,7 +617,7 @@ impl<'a> SymbolNodeRef<'a> {
         PropertyKey::PrivateIdentifier(n) => {
           Some(Cow::Owned(format!("#{}", n.name)))
         }
-        PropertyKey::StringLiteral(n) => Some(Cow::Borrowed(n.value.as_str())),
+        PropertyKey::StringLiteral(n) => Some(n.value.to_str_lossy()),
         PropertyKey::NumericLiteral(n) => Some(Cow::Owned(n.value.to_string())),
         _ => None,
       }
@@ -671,9 +660,7 @@ impl<'a> SymbolNodeRef<'a> {
         ExportDeclRef::TsInterface(n) => {
           Some(Cow::Borrowed(n.id.name.as_str()))
         }
-        ExportDeclRef::TsModule(n) => {
-          Some(Cow::Borrowed(ts_module_name_to_string(&n.id)))
-        }
+        ExportDeclRef::TsModule(n) => Some(Cow::Borrowed(&n.id.name)),
         ExportDeclRef::TsTypeAlias(n) => {
           Some(Cow::Borrowed(n.id.name.as_str()))
         }
@@ -699,9 +686,7 @@ impl<'a> SymbolNodeRef<'a> {
       }
       Self::TsEnum(n) => Some(Cow::Borrowed(n.id.name.as_str())),
       Self::TsInterface(n) => Some(Cow::Borrowed(n.id.name.as_str())),
-      Self::TsNamespace(n) => {
-        Some(Cow::Borrowed(ts_module_name_to_string(&n.id)))
-      }
+      Self::TsNamespace(n) => Some(Cow::Borrowed(&n.id.name)),
       Self::TsTypeAlias(n) => Some(Cow::Borrowed(n.id.name.as_str())),
       Self::Var(_, _, ident) => Some(Cow::Borrowed(ident.name.as_str())),
       Self::UsingVar(_, _, ident) => Some(Cow::Borrowed(ident.name.as_str())),
@@ -789,7 +774,7 @@ impl<'a> SymbolNodeRef<'a> {
   pub fn has_body(&self) -> bool {
     match self {
       SymbolNodeRef::FnDecl(n) => n.body.is_some(),
-      SymbolNodeRef::TsNamespace(n) => n.body.is_some(),
+      SymbolNodeRef::TsNamespace(_) => true,
       SymbolNodeRef::AutoAccessor(_) => todo!(),
       SymbolNodeRef::ClassMethod(m) => m.value.body.is_some(),
       SymbolNodeRef::Constructor(n) => n.value.body.is_some(),
@@ -802,7 +787,7 @@ impl<'a> SymbolNodeRef<'a> {
         _ => false,
       },
       SymbolNodeRef::ExportDecl(_, decl) => match decl {
-        ExportDeclRef::TsModule(n) => n.body.is_some(),
+        ExportDeclRef::TsModule(_) => true,
         ExportDeclRef::Fn(n) => n.body.is_some(),
         ExportDeclRef::Class(_)
         | ExportDeclRef::TsEnum(_)
@@ -1121,7 +1106,7 @@ impl<'a> ExpandoPropertyRef<'a> {
     if let Some(member) = Self::maybe_computed_member(expr)
       && let Expression::StringLiteral(str) = &member.expression
     {
-      return Some(str.value.as_str());
+      return str.value.as_str();
     }
     None
   }
@@ -1535,7 +1520,7 @@ impl<'a> ModuleInfoRef<'a> {
     match self {
       Self::Json(_) => None,
       Self::Esm(m) => {
-        Some(m.re_exports.iter().map(|e| e.source.value.as_str()))
+        Some(m.re_exports.iter().filter_map(|e| e.source.value.as_str()))
       }
     }
   }
@@ -1712,7 +1697,7 @@ impl std::fmt::Debug for EsModuleInfo<'_> {
         &self
           .re_exports
           .iter()
-          .map(|e| e.source.value.to_string())
+          .map(|e| e.source.value.to_string_lossy())
           .collect::<Vec<_>>(),
       )
       .field("id_to_symbol_id", &self.swc_id_to_symbol_id)
@@ -2066,7 +2051,7 @@ impl<'a> SymbolFiller<'a> {
                   SymbolDecl::new(
                     SymbolDeclKind::FileRef(FileDep {
                       name: FileDepName::Name(imported_name),
-                      specifier: import_decl.source.value.to_string(),
+                      specifier: import_decl.source.value.to_string_lossy(),
                     }),
                     n.span,
                   ),
@@ -2079,7 +2064,7 @@ impl<'a> SymbolFiller<'a> {
                   SymbolDecl::new(
                     SymbolDeclKind::FileRef(FileDep {
                       name: FileDepName::Name("default".to_string()),
-                      specifier: import_decl.source.value.to_string(),
+                      specifier: import_decl.source.value.to_string_lossy(),
                     }),
                     n.span,
                   ),
@@ -2092,7 +2077,7 @@ impl<'a> SymbolFiller<'a> {
                   SymbolDecl::new(
                     SymbolDeclKind::FileRef(FileDep {
                       name: FileDepName::Star,
-                      specifier: import_decl.source.value.to_string(),
+                      specifier: import_decl.source.value.to_string_lossy(),
                     }),
                     n.span,
                   ),
@@ -2103,19 +2088,26 @@ impl<'a> SymbolFiller<'a> {
           }
         }
       }
-      Statement::ExportNamedDeclaration(export_decl) => {
-        if let Some(decl) = &export_decl.declaration {
-          // export { declaration }
-          self.fill_export_named_decl(
-            export_decl,
-            decl,
-            module_symbol,
-            is_ambient,
-          );
-        } else {
-          // export { specifiers } or export { specifiers } from 'source'
-          self.fill_export_named_specifiers(export_decl, module_symbol);
-        }
+      Statement::ExportDeclaration(export_decl) => {
+        // export <declaration>
+        self.fill_export_named_decl(
+          export_decl,
+          &export_decl.declaration,
+          module_symbol,
+          is_ambient,
+        );
+      }
+      Statement::ExportNamedDeclaration(n) => {
+        // export { specifiers }
+        self.fill_export_named_specifiers(&n.specifiers, None, module_symbol);
+      }
+      Statement::ExportFromDeclaration(n) => {
+        // export { specifiers } from 'source'
+        self.fill_export_named_specifiers(
+          &n.specifiers,
+          Some(&n.source),
+          module_symbol,
+        );
       }
       Statement::ExportDefaultDeclaration(default_decl) => {
         match &default_decl.declaration {
@@ -2197,7 +2189,7 @@ impl<'a> SymbolFiller<'a> {
           symbol.add_decl(SymbolDecl::new(
             SymbolDeclKind::FileRef(FileDep {
               name: FileDepName::Star,
-              specifier: n.source.value.to_string(),
+              specifier: n.source.value.to_string_lossy(),
             }),
             decl_span,
           ));
@@ -2392,7 +2384,7 @@ impl<'a> SymbolFiller<'a> {
           module_symbol.add_export(n.id.name.to_string(), symbol_id);
         }
       }
-      Statement::TSModuleDeclaration(n) => {
+      Statement::TSNamespaceDeclaration(n) => {
         let decls_are_exports =
           is_ambient && !module_symbol.borrow_inner().is_module();
         let symbol_id = self.fill_ts_module(
@@ -2406,16 +2398,9 @@ impl<'a> SymbolFiller<'a> {
           module_symbol,
           is_ambient || n.declare,
         );
-        if let Some(symbol_id) = symbol_id {
-          module_symbol.add_child_id(symbol_id);
-          if decls_are_exports {
-            match &n.id {
-              TSModuleDeclarationName::Identifier(ident) => {
-                module_symbol.add_export(ident.name.to_string(), symbol_id);
-              }
-              TSModuleDeclarationName::StringLiteral(_) => {}
-            }
-          }
+        module_symbol.add_child_id(symbol_id);
+        if decls_are_exports {
+          module_symbol.add_export(n.id.name.to_string(), symbol_id);
         }
       }
       // TSGlobalDeclaration and any other statements we don't handle
@@ -2427,7 +2412,7 @@ impl<'a> SymbolFiller<'a> {
 
   fn fill_export_named_decl(
     &self,
-    export_decl: &'a ExportNamedDeclaration<'a>,
+    export_decl: &'a ExportDeclaration<'a>,
     decl: &'a Declaration<'a>,
     module_symbol: &SymbolMut<'a>,
     is_ambient: bool,
@@ -2549,8 +2534,11 @@ impl<'a> SymbolFiller<'a> {
         module_symbol.add_export(n.id.name.to_string(), symbol_id);
         module_symbol.add_child_id(symbol_id);
       }
-      Declaration::TSModuleDeclaration(n) => {
-        let maybe_symbol_id = self.fill_ts_module(
+      Declaration::TSExternalModuleDeclaration(_) => {
+        // ignore
+      }
+      Declaration::TSNamespaceDeclaration(n) => {
+        let symbol_id = self.fill_ts_module(
           SymbolDecl::new(
             SymbolDeclKind::Definition(SymbolNode(
               SymbolNodeInner::ExportDecl(
@@ -2564,15 +2552,8 @@ impl<'a> SymbolFiller<'a> {
           module_symbol,
           is_ambient || n.declare,
         );
-        if let Some(symbol_id) = maybe_symbol_id {
-          match &n.id {
-            TSModuleDeclarationName::Identifier(ident) => {
-              module_symbol.add_export(ident.name.to_string(), symbol_id);
-              module_symbol.add_child_id(symbol_id);
-            }
-            TSModuleDeclarationName::StringLiteral(_) => {}
-          }
-        }
+        module_symbol.add_export(n.id.name.to_string(), symbol_id);
+        module_symbol.add_child_id(symbol_id);
       }
       Declaration::TSGlobalDeclaration(_) => {
         // ignore
@@ -2599,21 +2580,22 @@ impl<'a> SymbolFiller<'a> {
 
   fn fill_export_named_specifiers(
     &self,
-    n: &ExportNamedDeclaration,
+    specifiers: &[ExportSpecifier],
+    source: Option<&StringLiteral>,
     module_symbol: &SymbolMut,
   ) {
-    for specifier in &n.specifiers {
+    for specifier in specifiers {
       let local_name = module_export_name_to_string(&specifier.local);
       let exported_name = module_export_name_to_string(&specifier.exported);
 
-      match &n.source {
+      match source {
         Some(src) => {
           let symbol =
             self.builder.create_new_symbol(module_symbol.symbol_id());
           symbol.add_decl(SymbolDecl::new(
             SymbolDeclKind::FileRef(FileDep {
               name: FileDepName::Name(local_name),
-              specifier: src.value.to_string(),
+              specifier: src.value.to_string_lossy(),
             }),
             specifier.span,
           ));
@@ -2741,7 +2723,7 @@ impl<'a> SymbolFiller<'a> {
           SymbolDecl::new(
             SymbolDeclKind::FileRef(FileDep {
               name: FileDepName::Name("default".to_string()),
-              specifier: module_ref.expression.value.to_string(),
+              specifier: module_ref.expression.value.to_string_lossy(),
             }),
             import_equals.span,
           ),
@@ -2803,16 +2785,11 @@ impl<'a> SymbolFiller<'a> {
   fn fill_ts_module(
     &self,
     symbol_decl: SymbolDecl<'a>,
-    n: &'a TSModuleDeclaration<'a>,
+    n: &'a TSNamespaceDeclaration<'a>,
     parent_symbol: &SymbolMut<'a>,
     is_ambient: bool,
-  ) -> Option<SymbolId> {
-    let mut id = match &n.id {
-      TSModuleDeclarationName::Identifier(ident) => {
-        ident.to_id(self.scoping.as_ref())
-      }
-      TSModuleDeclarationName::StringLiteral(_) => return None, // ignore for now
-    };
+  ) -> SymbolId {
+    let mut id = n.id.to_id(self.scoping.as_ref());
     let mod_symbol = self.builder.get_symbol_from_swc_id(
       id.clone(),
       symbol_decl,
@@ -2820,24 +2797,17 @@ impl<'a> SymbolFiller<'a> {
     );
 
     // fill the exported declarations
-    if let Some(body) = &n.body {
-      match body {
-        TSModuleDeclarationBody::TSModuleBlock(block) => {
+    {
+      match &n.body {
+        TSNamespaceDeclarationBody::TSModuleBlock(block) => {
           for item in &block.body {
             self.fill_stmt(item, mod_symbol, is_ambient || n.declare);
           }
         }
-        TSModuleDeclarationBody::TSModuleDeclaration(inner_decl) => {
+        TSNamespaceDeclarationBody::TSNamespaceDeclaration(inner_decl) => {
           // nested namespace: `namespace A.B { ... }`
           let previous_symbol = mod_symbol;
-          id = match &inner_decl.id {
-            TSModuleDeclarationName::Identifier(ident) => {
-              ident.to_id(self.scoping.as_ref())
-            }
-            TSModuleDeclarationName::StringLiteral(_) => {
-              return Some(mod_symbol.symbol_id());
-            }
-          };
+          id = inner_decl.id.to_id(self.scoping.as_ref());
           let nested_mod_symbol = self.builder.get_symbol_from_swc_id(
             id.clone(),
             SymbolDecl::new(
@@ -2853,27 +2823,25 @@ impl<'a> SymbolFiller<'a> {
           previous_symbol.add_child_id(nested_mod_symbol.symbol_id());
 
           // Recursively handle the inner module body
-          if let Some(inner_body) = &inner_decl.body {
-            match inner_body {
-              TSModuleDeclarationBody::TSModuleBlock(block) => {
-                for item in &block.body {
-                  self.fill_stmt(
-                    item,
-                    nested_mod_symbol,
-                    is_ambient || inner_decl.declare,
-                  );
-                }
+          match &inner_decl.body {
+            TSNamespaceDeclarationBody::TSModuleBlock(block) => {
+              for item in &block.body {
+                self.fill_stmt(
+                  item,
+                  nested_mod_symbol,
+                  is_ambient || inner_decl.declare,
+                );
               }
-              TSModuleDeclarationBody::TSModuleDeclaration(_) => {
-                // TODO: handle deeply nested namespaces
-              }
+            }
+            TSNamespaceDeclarationBody::TSNamespaceDeclaration(_) => {
+              // TODO: handle deeply nested namespaces
             }
           }
         }
       }
     }
 
-    Some(mod_symbol.symbol_id())
+    mod_symbol.symbol_id()
   }
 
   fn fill_class_elements(
@@ -3126,7 +3094,7 @@ fn module_export_name_to_string(name: &ModuleExportName) -> String {
   match name {
     ModuleExportName::IdentifierName(n) => n.name.to_string(),
     ModuleExportName::IdentifierReference(n) => n.name.to_string(),
-    ModuleExportName::StringLiteral(n) => n.value.to_string(),
+    ModuleExportName::StringLiteral(n) => n.value.to_string_lossy(),
   }
 }
 
@@ -3137,6 +3105,6 @@ fn module_export_name_to_id(
   match name {
     ModuleExportName::IdentifierName(n) => n.to_id(scoping),
     ModuleExportName::IdentifierReference(n) => n.to_id(scoping),
-    ModuleExportName::StringLiteral(n) => (n.value.to_string(), 0),
+    ModuleExportName::StringLiteral(n) => (n.value.to_string_lossy(), 0),
   }
 }
