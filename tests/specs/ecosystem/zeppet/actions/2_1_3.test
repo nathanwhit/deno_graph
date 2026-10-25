@@ -24,43 +24,43 @@ TS2304 [ERROR]: Cannot find name 'HTMLElement'.
 TS2304 [ERROR]: Cannot find name 'HTMLElement'.
   T extends HTMLElement,
             ~~~~~~~~~~~
-    at file://<tmpdir>/src/index.ts:13:13
+    at file://<tmpdir>/src/index.ts:11:13
 
 TS2304 [ERROR]: Cannot find name 'HTMLElement'.
   T extends HTMLElement,
             ~~~~~~~~~~~
-    at file://<tmpdir>/src/index.ts:18:13
+    at file://<tmpdir>/src/index.ts:16:13
 
 TS2304 [ERROR]: Cannot find name 'HTMLElementEventMap'.
   K extends keyof HTMLElementEventMap
                   ~~~~~~~~~~~~~~~~~~~
-    at file://<tmpdir>/src/index.ts:20:19
+    at file://<tmpdir>/src/index.ts:18:19
 
 TS2304 [ERROR]: Cannot find name 'HTMLElementEventMap'.
 >(event: K, observer: Observer<V>, mutateFn: (prev: V, event: HTMLElementEventMap[K], element: T) => V): Action<T> => ({}) as never;
                                                               ~~~~~~~~~~~~~~~~~~~
-    at file://<tmpdir>/src/index.ts:21:63
+    at file://<tmpdir>/src/index.ts:19:63
 
 TS2304 [ERROR]: Cannot find name 'HTMLInputElement'.
 export const bindInput = <T extends HTMLInputElement>(obs: Observer<string>): Action<T> => ({}) as never;
                                     ~~~~~~~~~~~~~~~~
-    at file://<tmpdir>/src/index.ts:22:37
+    at file://<tmpdir>/src/index.ts:20:37
 
 TS2304 [ERROR]: Cannot find name 'HTMLElement'.
   T extends HTMLElement,
             ~~~~~~~~~~~
-    at file://<tmpdir>/src/index.ts:24:13
+    at file://<tmpdir>/src/index.ts:22:13
 
 TS2304 [ERROR]: Cannot find name 'HTMLElementTagNameMap'.
   K extends keyof HTMLElementTagNameMap,
                   ~~~~~~~~~~~~~~~~~~~~~
-    at file://<tmpdir>/src/index.ts:25:19
+    at file://<tmpdir>/src/index.ts:23:19
 
 TS2304 [ERROR]: Cannot find name 'HTMLElementTagNameMap'.
-    at file://<tmpdir>/src/index.ts:27:93
+    at file://<tmpdir>/src/index.ts:25:93
 
 TS2304 [ERROR]: Cannot find name 'HTMLElementTagNameMap'.
-    at file://<tmpdir>/src/index.ts:27:122
+    at file://<tmpdir>/src/index.ts:25:122
 
 Found 12 errors.
 

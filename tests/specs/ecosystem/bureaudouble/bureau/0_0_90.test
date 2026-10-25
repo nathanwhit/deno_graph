@@ -786,14 +786,14 @@ bureaudouble/bureau/0.0.90
 
 -- stderr --
 TS2694 [ERROR]: Namespace 'React' has no exported member 'JSX'.
-const DialogHeader = ({ ...props }: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element => ({}) as never;
-                                                                                 ~~~
-    at file://<tmpdir>/src/components/ui/dialog.tsx:13:82
+const DialogHeader = ({}: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element => ({}) as never;
+                                                                       ~~~
+    at file://<tmpdir>/src/components/ui/dialog.tsx:13:72
 
 TS2694 [ERROR]: Namespace 'React' has no exported member 'JSX'.
-const DialogFooter = ({ ...props }: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element => ({}) as never;
-                                                                                 ~~~
-    at file://<tmpdir>/src/components/ui/dialog.tsx:14:82
+const DialogFooter = ({}: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element => ({}) as never;
+                                                                       ~~~
+    at file://<tmpdir>/src/components/ui/dialog.tsx:14:72
 
 Found 2 errors.
 

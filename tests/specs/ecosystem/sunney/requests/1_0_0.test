@@ -41,18 +41,15 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:169:10
-    | 
-169 |     set: (key: string, value: string) => {
-    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-170 |       this._headers[key] = value;
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-171 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type of 'void' or 'never' to the function
+     --> /src/index.ts:169:10
+      | 
+> 169 |     set: (key: string, value: string) => {
+      |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 170 |       this._headers[key] = value;
+> 171 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'
@@ -61,54 +58,45 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:172:10
-    | 
-172 |     get: (key: string) => {
-    |          ^^^^^^^^^^^^^^^^^^
-    | 
-173 |       return this._headers[key];
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-174 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type to the function
+     --> /src/index.ts:172:10
+      | 
+> 172 |     get: (key: string) => {
+      |          ^^^^^^^^^^^^^^^^^^
+> 173 |       return this._headers[key];
+> 174 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type to the function
 
   info: all functions in the public API must have an explicit return type
   docs: https://jsr.io/go/slow-type-missing-explicit-return-type
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:175:13
-    | 
-175 |     getAll: () => {
-    |             ^^^^^^^
-    | 
-176 |       return this._headers;
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-177 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type to the function
+     --> /src/index.ts:175:13
+      | 
+> 175 |     getAll: () => {
+      |             ^^^^^^^
+> 176 |       return this._headers;
+> 177 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type to the function
 
   info: all functions in the public API must have an explicit return type
   docs: https://jsr.io/go/slow-type-missing-explicit-return-type
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:178:13
-    | 
-178 |     remove: (key: string) => {
-    |             ^^^^^^^^^^^^^^^^^^
-    | 
-179 |       delete this._headers[key];
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-180 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type of 'void' or 'never' to the function
+     --> /src/index.ts:178:13
+      | 
+> 178 |     remove: (key: string) => {
+      |             ^^^^^^^^^^^^^^^^^^
+> 179 |       delete this._headers[key];
+> 180 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'
@@ -117,27 +105,17 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:181:13
-    | 
-181 |     update: (headers: Record<string, string>) => {
-    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-182 |       this._headers = {
-    | ^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-183 |         ...headers,
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-184 |         ...this._headers,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-185 |       };
-    | ^^^^^^^^
-    | 
-186 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type of 'void' or 'never' to the function
+     --> /src/index.ts:181:13
+      | 
+> 181 |     update: (headers: Record<string, string>) => {
+      |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 182 |       this._headers = {
+     ...
+> 185 |       };
+> 186 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'
@@ -146,18 +124,15 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:190:10
-    | 
-190 |     set: (key: string, value: string) => {
-    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-191 |       this._cookies[key] = value;
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-192 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type of 'void' or 'never' to the function
+     --> /src/index.ts:190:10
+      | 
+> 190 |     set: (key: string, value: string) => {
+      |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 191 |       this._cookies[key] = value;
+> 192 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'
@@ -166,54 +141,45 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:193:10
-    | 
-193 |     get: (key: string) => {
-    |          ^^^^^^^^^^^^^^^^^^
-    | 
-194 |       return this._cookies[key];
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-195 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type to the function
+     --> /src/index.ts:193:10
+      | 
+> 193 |     get: (key: string) => {
+      |          ^^^^^^^^^^^^^^^^^^
+> 194 |       return this._cookies[key];
+> 195 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type to the function
 
   info: all functions in the public API must have an explicit return type
   docs: https://jsr.io/go/slow-type-missing-explicit-return-type
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:196:13
-    | 
-196 |     getAll: () => {
-    |             ^^^^^^^
-    | 
-197 |       return this._cookies;
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-198 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type to the function
+     --> /src/index.ts:196:13
+      | 
+> 196 |     getAll: () => {
+      |             ^^^^^^^
+> 197 |       return this._cookies;
+> 198 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type to the function
 
   info: all functions in the public API must have an explicit return type
   docs: https://jsr.io/go/slow-type-missing-explicit-return-type
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:199:13
-    | 
-199 |     remove: (key: string) => {
-    |             ^^^^^^^^^^^^^^^^^^
-    | 
-200 |       delete this._cookies[key];
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-201 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type of 'void' or 'never' to the function
+     --> /src/index.ts:199:13
+      | 
+> 199 |     remove: (key: string) => {
+      |             ^^^^^^^^^^^^^^^^^^
+> 200 |       delete this._cookies[key];
+> 201 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'
@@ -222,27 +188,17 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/index.ts:202:13
-    | 
-202 |     update: (cookies: Record<string, string>) => {
-    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-203 |       this._cookies = {
-    | ^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-204 |         ...cookies,
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-205 |         ...this._cookies,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-206 |       };
-    | ^^^^^^^^
-    | 
-207 |     },
-    | ^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type of 'void' or 'never' to the function
+     --> /src/index.ts:202:13
+      | 
+> 202 |     update: (cookies: Record<string, string>) => {
+      |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 203 |       this._cookies = {
+     ...
+> 206 |       };
+> 207 |     },
+      |     ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'

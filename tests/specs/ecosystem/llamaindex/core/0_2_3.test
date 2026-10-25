@@ -809,24 +809,17 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-type]: missing explicit type in the public API
-   --> /src/Prompt.ts:104:37
-    | 
-104 | export const defaultRefinePrompt = ({
-    |                                     ^
-    | 
-105 |   query = "",
-    | ^^^^^^^^^^^^^
-    | 
-106 |   existingAnswer = "",
-    | ^^^^^^^^^^^^^^^^^^^^^^
-    | 
-107 |   context = "",
-    | ^^^^^^^^^^^^^^^
-    | 
-108 | }) => {
-    | ^ this symbol is missing an explicit type
-    | 
-    = hint: add an explicit type annotation to the symbol
+     --> /src/Prompt.ts:104:37
+      | 
+> 104 | export const defaultRefinePrompt = ({
+      |                                     ^
+> 105 |   query = "",
+> 106 |   existingAnswer = "",
+> 107 |   context = "",
+> 108 | }) => {
+      | ^ this symbol is missing an explicit type
+      | 
+      = hint: add an explicit type annotation to the symbol
 
   info: all symbols in the public API must have an explicit type
   docs: https://jsr.io/go/slow-type-missing-explicit-type
@@ -929,21 +922,16 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-type]: missing explicit type in the public API
-   --> /src/Prompt.ts:343:47
-    | 
-343 | export const defaultCondenseQuestionPrompt = ({
-    |                                               ^
-    | 
-344 |   chatHistory = "",
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-345 |   question = "",
-    | ^^^^^^^^^^^^^^^^
-    | 
-346 | }) => {
-    | ^ this symbol is missing an explicit type
-    | 
-    = hint: add an explicit type annotation to the symbol
+     --> /src/Prompt.ts:343:47
+      | 
+> 343 | export const defaultCondenseQuestionPrompt = ({
+      |                                               ^
+> 344 |   chatHistory = "",
+> 345 |   question = "",
+> 346 | }) => {
+      | ^ this symbol is missing an explicit type
+      | 
+      = hint: add an explicit type annotation to the symbol
 
   info: all symbols in the public API must have an explicit type
   docs: https://jsr.io/go/slow-type-missing-explicit-type
@@ -998,21 +986,16 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-type]: missing explicit type in the public API
-   --> /src/Prompt.ts:382:45
-    | 
-382 | export const defaultKeywordExtractPrompt = ({
-    |                                             ^
-    | 
-383 |   context = "",
-    | ^^^^^^^^^^^^^^^
-    | 
-384 |   maxKeywords = 10,
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-385 | }) => {
-    | ^ this symbol is missing an explicit type
-    | 
-    = hint: add an explicit type annotation to the symbol
+     --> /src/Prompt.ts:382:45
+      | 
+> 382 | export const defaultKeywordExtractPrompt = ({
+      |                                             ^
+> 383 |   context = "",
+> 384 |   maxKeywords = 10,
+> 385 | }) => {
+      | ^ this symbol is missing an explicit type
+      | 
+      = hint: add an explicit type annotation to the symbol
 
   info: all symbols in the public API must have an explicit type
   docs: https://jsr.io/go/slow-type-missing-explicit-type
@@ -1031,21 +1014,16 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-type]: missing explicit type in the public API
-   --> /src/Prompt.ts:397:50
-    | 
-397 | export const defaultQueryKeywordExtractPrompt = ({
-    |                                                  ^
-    | 
-398 |   question = "",
-    | ^^^^^^^^^^^^^^^^
-    | 
-399 |   maxKeywords = 10,
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-400 | }) => {
-    | ^ this symbol is missing an explicit type
-    | 
-    = hint: add an explicit type annotation to the symbol
+     --> /src/Prompt.ts:397:50
+      | 
+> 397 | export const defaultQueryKeywordExtractPrompt = ({
+      |                                                  ^
+> 398 |   question = "",
+> 399 |   maxKeywords = 10,
+> 400 | }) => {
+      | ^ this symbol is missing an explicit type
+      | 
+      = hint: add an explicit type annotation to the symbol
 
   info: all symbols in the public API must have an explicit type
   docs: https://jsr.io/go/slow-type-missing-explicit-type

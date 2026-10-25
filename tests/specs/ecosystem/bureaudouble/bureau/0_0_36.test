@@ -1940,22 +1940,22 @@ bureaudouble/bureau/0.0.36
 
 -- stderr --
 TS2503 [ERROR]: Cannot find namespace 'JSX'.
-export const CustomInput = ({ ...props }: CustomInputProps): JSX.Element => {
-                                                             ~~~
-    at file://<tmpdir>/src/components/CustomInput.tsx:16:62
+export const CustomInput = ({}: CustomInputProps): JSX.Element => ({}) as never;
+                                                   ~~~
+    at file://<tmpdir>/src/components/CustomInput.tsx:16:52
 
 TS2503 [ERROR]: Cannot find namespace 'JSX'.
-export default <TData = Record<string, unknown>,>({}: DataTableProps<TData>): JSX.Element => {
+export default <TData = Record<string, unknown>,>({}: DataTableProps<TData>): JSX.Element => ({}) as never;
                                                                               ~~~
     at file://<tmpdir>/src/components/DataTable.tsx:19:79
 
 TS2503 [ERROR]: Cannot find namespace 'JSX'.
-}): JSX.Element => {
+}): JSX.Element => ({}) as never;
     ~~~
-    at file://<tmpdir>/src/components/Media.tsx:18:5
+    at file://<tmpdir>/src/components/Media.tsx:16:5
 
 TS2503 [ERROR]: Cannot find namespace 'JSX'.
-}): JSX.Element => {
+}): JSX.Element => ({}) as never;
     ~~~
     at file://<tmpdir>/src/components/SqlInput.tsx:10:5
 
@@ -2098,14 +2098,14 @@ type ToasterProps = React.ComponentProps<typeof Sonner>;
     at file://<tmpdir>/src/components/ui/sonner.tsx:5:21
 
 TS2503 [ERROR]: Cannot find namespace 'JSX'.
-const Toaster = ({ ...props }: ToasterProps): JSX.Element => {
-                                              ~~~
-    at file://<tmpdir>/src/components/ui/sonner.tsx:6:47
+const Toaster = ({}: ToasterProps): JSX.Element => ({}) as never;
+                                    ~~~
+    at file://<tmpdir>/src/components/ui/sonner.tsx:6:37
 
 TS2503 [ERROR]: Cannot find namespace 'JSX'.
-}): JSX.Element => {
+}): JSX.Element => ({}) as never;
     ~~~
-    at file://<tmpdir>/src/components/ui/sonner.tsx:11:5
+    at file://<tmpdir>/src/components/ui/sonner.tsx:9:5
 
 TS2304 [ERROR]: Cannot find name 'HTMLDivElement'.
     at file://<tmpdir>/src/components/ui/tabs.tsx:7:104

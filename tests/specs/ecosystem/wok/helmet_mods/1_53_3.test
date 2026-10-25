@@ -5,104 +5,16 @@ wok/helmet-mods/1.53.3
 
 == FAST CHECK EMIT FAILED ==
 error[unsupported-default-export-expr]: default export expression was too complex
-  --> /src/mods/resource_group/resource_group.ts:39:1
-   | 
-39 | export default defineChart(
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-40 |   (
-   | ^^^
-   | 
-41 |     {
-   | ^^^^^
-   | 
-42 |       name,
-   | ^^^^^^^^^^^
-   | 
-43 |       namespace,
-   | ^^^^^^^^^^^^^^^^
-   | 
-44 |       resources,
-   | ^^^^^^^^^^^^^^^^
-   | 
-45 |       crds = [],
-   | ^^^^^^^^^^^^^^^^
-   | 
-46 |       labels = {},
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-47 |       version = releaseVersion,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-48 |     }: ResourceGroupParams,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-49 |   ) => {
-   | ^^^^^^^^
-   | 
-50 |     const seedLabels = {
-   | ^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-51 |       "app.kubernetes.io/name": name,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-52 |       "app.kubernetes.io/instance": name,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-53 |     };
-   | ^^^^^^
-   | 
-54 | 
-   | 
-   | 
-55 |     return Promise.resolve({
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-56 |       name,
-   | ^^^^^^^^^^^
-   | 
-57 |       namespace,
-   | ^^^^^^^^^^^^^^^^
-   | 
-58 |       version,
-   | ^^^^^^^^^^^^^^
-   | 
-59 |       labels: {
-   | ^^^^^^^^^^^^^^^
-   | 
-60 |         ...seedLabels,
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   | 
-61 |         ...labels,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-62 |         "app.kubernetes.io/managed-by": "Helm",
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-63 |       },
-   | ^^^^^^^^
-   | 
-64 |       resources: [
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-65 |         ...resources,
-   | ^^^^^^^^^^^^^^^^^^^^^
-   | 
-66 |       ],
-   | ^^^^^^^^
-   | 
-67 |       crds: crds || [],
-   | ^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-68 |     });
-   | ^^^^^^^
-   | 
-69 |   },
-   | ^^^^
-   | 
-70 | );
-   | ^^
-   = hint: add an 'as' clause with an explicit type after the expression, or extract to a variable
+    --> /src/mods/resource_group/resource_group.ts:39:1
+     | 
+> 39 | export default defineChart(
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 40 |   (
+    ...
+> 69 |   },
+> 70 | );
+     | ^^
+     = hint: add an 'as' clause with an explicit type after the expression, or extract to a variable
 
   info: fast check was unable to infer the type of the default export expression
   docs: https://jsr.io/go/slow-type-unsupported-default-export-expr

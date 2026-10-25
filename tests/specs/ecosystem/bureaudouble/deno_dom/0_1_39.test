@@ -56,42 +56,42 @@ TS4114 [ERROR]: This member must have an 'override' modifier because it override
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'Node'.
   get nodeValue(): string {
       ~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:150:7
+    at file://<tmpdir>/src/dom/node.ts:148:7
 
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'Node'.
   set nodeValue(value: any) {}
       ~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:153:7
+    at file://<tmpdir>/src/dom/node.ts:151:7
 
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'Node'.
   get textContent(): string {
       ~~~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:158:7
+    at file://<tmpdir>/src/dom/node.ts:156:7
 
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'Node'.
   set textContent(value: any) {}
       ~~~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:161:7
+    at file://<tmpdir>/src/dom/node.ts:159:7
 
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'CharacterData'.
   _shallowClone(): Node {
   ~~~~~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:174:3
+    at file://<tmpdir>/src/dom/node.ts:172:3
 
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'CharacterData'.
   get textContent(): string {
       ~~~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:177:7
+    at file://<tmpdir>/src/dom/node.ts:175:7
 
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'CharacterData'.
   _shallowClone(): Node {
   ~~~~~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:185:3
+    at file://<tmpdir>/src/dom/node.ts:183:3
 
 TS4114 [ERROR]: This member must have an 'override' modifier because it overrides a member in the base class 'CharacterData'.
   get textContent(): string {
       ~~~~~~~~~~~
-    at file://<tmpdir>/src/dom/node.ts:188:7
+    at file://<tmpdir>/src/dom/node.ts:186:7
 
 Found 16 errors.
 

@@ -5,53 +5,16 @@ kwhinnery/openai/0.0.2
 
 == FAST CHECK EMIT FAILED ==
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-   --> /mod.ts:189:14
-    | 
-189 | export const {
-    |              ^
-    | 
-190 |   OpenAIError,
-    | ^^^^^^^^^^^^^^
-    | 
-191 |   APIError,
-    | ^^^^^^^^^^^
-    | 
-192 |   APIConnectionError,
-    | ^^^^^^^^^^^^^^^^^^^^^
-    | 
-193 |   APIConnectionTimeoutError,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-194 |   APIUserAbortError,
-    | ^^^^^^^^^^^^^^^^^^^^
-    | 
-195 |   NotFoundError,
-    | ^^^^^^^^^^^^^^^^
-    | 
-196 |   ConflictError,
-    | ^^^^^^^^^^^^^^^^
-    | 
-197 |   RateLimitError,
-    | ^^^^^^^^^^^^^^^^^
-    | 
-198 |   BadRequestError,
-    | ^^^^^^^^^^^^^^^^^^
-    | 
-199 |   AuthenticationError,
-    | ^^^^^^^^^^^^^^^^^^^^^^
-    | 
-200 |   InternalServerError,
-    | ^^^^^^^^^^^^^^^^^^^^^^
-    | 
-201 |   PermissionDeniedError,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-202 |   UnprocessableEntityError,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-203 | } = Errors;
-    | ^
-    = hint: separate each destructured symbol into its own export statement
+     --> /mod.ts:189:14
+      | 
+> 189 | export const {
+      |              ^
+> 190 |   OpenAIError,
+     ...
+> 202 |   UnprocessableEntityError,
+> 203 | } = Errors;
+      | ^
+      = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring

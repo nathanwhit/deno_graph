@@ -16,102 +16,102 @@ malven/modu/2.4.61
 TS2304 [ERROR]: Cannot find name 'Element'.
   el: Element;
       ~~~~~~~
-    at file://<tmpdir>/index.ts:18:7
+    at file://<tmpdir>/index.ts:14:7
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   el: Element;
       ~~~~~~~
-    at file://<tmpdir>/index.ts:45:7
+    at file://<tmpdir>/index.ts:41:7
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   declare el: Element;
               ~~~~~~~
-    at file://<tmpdir>/index.ts:55:15
+    at file://<tmpdir>/index.ts:51:15
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   get(name: string): Element | null {
                      ~~~~~~~
-    at file://<tmpdir>/index.ts:71:22
+    at file://<tmpdir>/index.ts:67:22
 
 TS2304 [ERROR]: Cannot find name 'NodeListOf'.
   getAll(name: string): NodeListOf<Element> {
                         ~~~~~~~~~~
-    at file://<tmpdir>/index.ts:79:25
+    at file://<tmpdir>/index.ts:75:25
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   getAll(name: string): NodeListOf<Element> {
                                    ~~~~~~~
-    at file://<tmpdir>/index.ts:79:36
+    at file://<tmpdir>/index.ts:75:36
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   getData(name: string, el?: Element | null): string | number | boolean | null {
                              ~~~~~~~
-    at file://<tmpdir>/index.ts:88:30
+    at file://<tmpdir>/index.ts:84:30
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   init(containerEl?: Element | Document | null): void {}
                      ~~~~~~~
-    at file://<tmpdir>/index.ts:149:22
+    at file://<tmpdir>/index.ts:145:22
 
 TS2304 [ERROR]: Cannot find name 'Document'.
   init(containerEl?: Element | Document | null): void {}
                                ~~~~~~~~
-    at file://<tmpdir>/index.ts:149:32
+    at file://<tmpdir>/index.ts:145:32
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   destroyModules(containerEl?: Element | Document | null): void {}
                                ~~~~~~~
-    at file://<tmpdir>/index.ts:158:32
+    at file://<tmpdir>/index.ts:154:32
 
 TS2304 [ERROR]: Cannot find name 'Document'.
   destroyModules(containerEl?: Element | Document | null): void {}
                                          ~~~~~~~~
-    at file://<tmpdir>/index.ts:158:42
+    at file://<tmpdir>/index.ts:154:42
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   getModuleElements(containerEl?: Element | Document): Element[] {
                                   ~~~~~~~
-    at file://<tmpdir>/index.ts:160:35
+    at file://<tmpdir>/index.ts:156:35
 
 TS2304 [ERROR]: Cannot find name 'Document'.
   getModuleElements(containerEl?: Element | Document): Element[] {
                                             ~~~~~~~~
-    at file://<tmpdir>/index.ts:160:45
+    at file://<tmpdir>/index.ts:156:45
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   getModuleElements(containerEl?: Element | Document): Element[] {
                                                        ~~~~~~~
-    at file://<tmpdir>/index.ts:160:56
+    at file://<tmpdir>/index.ts:156:56
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   initModulesForElements(elements: Element[]): void {}
                                    ~~~~~~~
-    at file://<tmpdir>/index.ts:164:36
+    at file://<tmpdir>/index.ts:160:36
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   destroyModulesForElements(elements: Element[]): void {}
                                       ~~~~~~~
-    at file://<tmpdir>/index.ts:166:39
+    at file://<tmpdir>/index.ts:162:39
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   initModules(element: Element): Promise<(void | Modu)[]> {
                        ~~~~~~~
-    at file://<tmpdir>/index.ts:168:24
+    at file://<tmpdir>/index.ts:164:24
 
 TS2304 [ERROR]: Cannot find name 'Element'.
     element: Element;
              ~~~~~~~
-    at file://<tmpdir>/index.ts:173:14
+    at file://<tmpdir>/index.ts:169:14
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   getModuleNamesFromElement(element: Element): ModuleNames {
                                      ~~~~~~~
-    at file://<tmpdir>/index.ts:180:38
+    at file://<tmpdir>/index.ts:176:38
 
 TS2304 [ERROR]: Cannot find name 'Element'.
   getModulesForElement(element: Element, name?: string): StoredModu[] {
                                 ~~~~~~~
-    at file://<tmpdir>/index.ts:184:33
+    at file://<tmpdir>/index.ts:180:33
 
 Found 20 errors.
 

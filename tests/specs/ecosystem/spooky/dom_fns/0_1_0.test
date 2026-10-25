@@ -5,18 +5,15 @@ spooky/dom-fns/0.1.0
 
 == FAST CHECK EMIT FAILED ==
 error[missing-explicit-return-type]: missing explicit return type in the public API
- --> /src/main.ts:5:36
-  | 
-5 | export const el = (sel: string) => () => {
-  |                                    ^^^^^^^
-  | 
-6 |   return document.querySelector(sel);
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | 
-7 | };
-  | ^ this function is missing an explicit return type
-  | 
-  = hint: add an explicit return type to the function
+   --> /src/main.ts:5:36
+    | 
+> 5 | export const el = (sel: string) => () => {
+    |                                    ^^^^^^^
+> 6 |   return document.querySelector(sel);
+> 7 | };
+    | ^ this function is missing an explicit return type
+    | 
+    = hint: add an explicit return type to the function
 
   info: all functions in the public API must have an explicit return type
   docs: https://jsr.io/go/slow-type-missing-explicit-return-type
@@ -121,18 +118,15 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/main.ts:117:29
-    | 
-117 | export const debug = () =>  (...args: any[]) => {
-    |                             ^^^^^^^^^^^^^^^^^^^^^
-    | 
-118 |   debugger;
-    | ^^^^^^^^^^^
-    | 
-119 | };
-    | ^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type of 'void' or 'never' to the function
+     --> /src/main.ts:117:29
+      | 
+> 117 | export const debug = () =>  (...args: any[]) => {
+      |                             ^^^^^^^^^^^^^^^^^^^^^
+> 118 |   debugger;
+> 119 | };
+      | ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'
@@ -141,18 +135,15 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/main.ts:122:3
-    | 
-122 |   (init: any) => 
-    |   ^^^^^^^^^^^^^^^
-    | 
-123 |   /** @ts-ignore */
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-124 |   filterFn(cond, pipe(init, ...fns));
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type to the function
+     --> /src/main.ts:122:3
+      | 
+> 122 |   (init: any) => 
+      |   ^^^^^^^^^^^^^^^
+> 123 |   /** @ts-ignore */
+> 124 |   filterFn(cond, pipe(init, ...fns));
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type to the function
 
   info: all functions in the public API must have an explicit return type
   docs: https://jsr.io/go/slow-type-missing-explicit-return-type
@@ -183,27 +174,17 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-   --> /src/main.ts:137:87
-    | 
-137 | export let action = (eventName: string, fn: (ev: Event) => any) => (el: ElementFn) => () => {
-    |                                                                                       ^^^^^^^
-    | 
-138 |   let _el = el();
-    | ^^^^^^^^^^^^^^^^^
-    | 
-139 |   let handler = (ev: Event) => fn(ev);
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-140 |   _el.addEventListener(eventName, handler);
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-141 |   return () => _el.removeEventListener(eventName, handler);
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-142 | };
-    | ^ this function is missing an explicit return type
-    | 
-    = hint: add an explicit return type to the function
+     --> /src/main.ts:137:87
+      | 
+> 137 | export let action = (eventName: string, fn: (ev: Event) => any) => (el: ElementFn) => () => {
+      |                                                                                       ^^^^^^^
+> 138 |   let _el = el();
+     ...
+> 141 |   return () => _el.removeEventListener(eventName, handler);
+> 142 | };
+      | ^ this function is missing an explicit return type
+      | 
+      = hint: add an explicit return type to the function
 
   info: all functions in the public API must have an explicit return type
   docs: https://jsr.io/go/slow-type-missing-explicit-return-type

@@ -511,623 +511,249 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases_deps.ts:40:14
-   | 
-40 | export const {
-   |              ^
-   | 
-41 |   from: array_from,
-   | ^^^^^^^^^^^^^^^^^^^
-   | 
-42 |   isArray: array_isArray,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-43 |   of: array_of,
-   | ^^^^^^^^^^^^^^^
-   | 
-44 | } = Array
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases_deps.ts:40:14
+     | 
+> 40 | export const {
+     |              ^
+> 41 |   from: array_from,
+> 42 |   isArray: array_isArray,
+> 43 |   of: array_of,
+> 44 | } = Array
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases_deps.ts:46:14
-   | 
-46 | export const {
-   |              ^
-   | 
-47 |   MAX_VALUE: number_MAX_VALUE,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-48 |   NEGATIVE_INFINITY: number_NEGATIVE_INFINITY,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-49 |   POSITIVE_INFINITY: number_POSITIVE_INFINITY,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-50 |   isFinite: number_isFinite,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-51 |   isInteger: number_isInteger,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-52 |   isNaN: number_isNaN,
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   | 
-53 |   parseFloat: number_parseFloat,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-54 |   parseInt: number_parseInt,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-55 | } = Number
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases_deps.ts:46:14
+     | 
+> 46 | export const {
+     |              ^
+> 47 |   MAX_VALUE: number_MAX_VALUE,
+    ...
+> 54 |   parseInt: number_parseInt,
+> 55 | } = Number
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases_deps.ts:57:14
-   | 
-57 | export const {
-   |              ^
-   | 
-58 |   random: math_random,
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   | 
-59 | } = Math
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases_deps.ts:57:14
+     | 
+> 57 | export const {
+     |              ^
+> 58 |   random: math_random,
+> 59 | } = Math
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases_deps.ts:61:14
-   | 
-61 | export const {
-   |              ^
-   | 
-62 |   assign: object_assign,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-63 |   defineProperty: object_defineProperty,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-64 |   entries: object_entries,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-65 |   fromEntries: object_fromEntries,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-66 |   keys: object_keys,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-67 |   getPrototypeOf: object_getPrototypeOf,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-68 |   values: object_values,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-69 | } = Object
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases_deps.ts:61:14
+     | 
+> 61 | export const {
+     |              ^
+> 62 |   assign: object_assign,
+    ...
+> 68 |   values: object_values,
+> 69 | } = Object
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases_deps.ts:73:14
-   | 
-73 | export const {
-   |              ^
-   | 
-74 |   iterator: symbol_iterator,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-75 |   toStringTag: symbol_toStringTag,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-76 | } = Symbol
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases_deps.ts:73:14
+     | 
+> 73 | export const {
+     |              ^
+> 74 |   iterator: symbol_iterator,
+> 75 |   toStringTag: symbol_toStringTag,
+> 76 | } = Symbol
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases_deps.ts:84:14
-   | 
-84 | export const {
-   |              ^
-   | 
-85 |   assert: console_assert,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-86 |   clear: console_clear,
-   | ^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-87 |   debug: console_debug,
-   | ^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-88 |   dir: console_dir,
-   | ^^^^^^^^^^^^^^^^^^^
-   | 
-89 |   error: console_error,
-   | ^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-90 |   log: console_log,
-   | ^^^^^^^^^^^^^^^^^^^
-   | 
-91 |   table: console_table,
-   | ^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-92 | } = console
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases_deps.ts:84:14
+     | 
+> 84 | export const {
+     |              ^
+> 85 |   assert: console_assert,
+    ...
+> 91 |   table: console_table,
+> 92 | } = console
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases_deps.ts:94:14
-   | 
-94 | export const {
-   |              ^
-   | 
-95 |   now: performance_now,
-   | ^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-96 | } = performance
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases_deps.ts:94:14
+     | 
+> 94 | export const {
+     |              ^
+> 95 |   now: performance_now,
+> 96 | } = performance
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases.ts:12:14
-   | 
-12 | export const {
-   |              ^
-   | 
-13 |   // numeric comparison functions
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-14 |   min: math_min,
-   | ^^^^^^^^^^^^^^^^
-   | 
-15 |   max: math_max,
-   | ^^^^^^^^^^^^^^^^
-   | 
-16 |   sign: math_sign,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-17 |   abs: math_abs,
-   | ^^^^^^^^^^^^^^^^
-   | 
-18 |   // numeric rounding functions
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-19 |   round: math_round,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-20 |   ceil: math_ceil,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-21 |   floor: math_floor,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-22 |   trunc: math_trunc,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-23 |   fround: math_fround,
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   | 
-24 |   // triginometric functions
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-25 |   sin: math_sin,
-   | ^^^^^^^^^^^^^^^^
-   | 
-26 |   cos: math_cos,
-   | ^^^^^^^^^^^^^^^^
-   | 
-27 |   tan: math_tan,
-   | ^^^^^^^^^^^^^^^^
-   | 
-28 |   asin: math_asin,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-29 |   acos: math_acos,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-30 |   atan: math_atan,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-31 |   sinh: math_sinh,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-32 |   cosh: math_cosh,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-33 |   tanh: math_tanh,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-34 |   asinh: math_asinh,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-35 |   acosh: math_acosh,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-36 |   atanh: math_atanh,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-37 |   atan2: math_atan2,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-38 |   // math functions
-   | ^^^^^^^^^^^^^^^^^^^
-   | 
-39 |   cbrt: math_cbrt,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-40 |   clz32: math_clz32,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-41 |   exp: math_exp,
-   | ^^^^^^^^^^^^^^^^
-   | 
-42 |   expm1: math_expm1,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-43 |   hypot: math_hypot,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-44 |   imul: math_imul,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-45 |   log: math_log,
-   | ^^^^^^^^^^^^^^^^
-   | 
-46 |   log10: math_log10,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-47 |   log1p: math_log1p,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-48 |   log2: math_log2,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-49 |   pow: math_pow,
-   | ^^^^^^^^^^^^^^^^
-   | 
-50 |   sqrt: math_sqrt,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-51 |   // random function
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-52 |   // random: math_random,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-53 |   // math constants
-   | ^^^^^^^^^^^^^^^^^^^
-   | 
-54 |   E: math_E,
-   | ^^^^^^^^^^^^
-   | 
-55 |   LN10: math_LN10,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-56 |   LN2: math_LN2,
-   | ^^^^^^^^^^^^^^^^
-   | 
-57 |   LOG10E: math_LOG10E,
-   | ^^^^^^^^^^^^^^^^^^^^^^
-   | 
-58 |   LOG2E: math_LOG2E,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-59 |   PI: math_PI,
-   | ^^^^^^^^^^^^^^
-   | 
-60 |   SQRT1_2: math_SQRT1_2,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-61 |   SQRT2: math_SQRT2,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-62 | } = Math
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases.ts:12:14
+     | 
+> 12 | export const {
+     |              ^
+> 13 |   // numeric comparison functions
+    ...
+> 61 |   SQRT2: math_SQRT2,
+> 62 | } = Math
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases.ts:64:14
-   | 
-64 | export const {
-   |              ^
-   | 
-65 |   EPSILON: number_EPSILON,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-66 |   MAX_SAFE_INTEGER: number_MAX_SAFE_INTEGER,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-67 |   // MAX_VALUE: number_MAX_VALUE,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-68 |   MIN_SAFE_INTEGER: number_MIN_SAFE_INTEGER,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-69 |   MIN_VALUE: number_MIN_VALUE,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-70 |   // NEGATIVE_INFINITY: number_NEGATIVE_INFINITY,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-71 |   NaN: number_NaN,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-72 |   // POSITIVE_INFINITY: number_POSITIVE_INFINITY,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-73 |   // isFinite: number_isFinite,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-74 |   // isInteger: number_isInteger,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-75 |   // isNaN: number_isNaN,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-76 |   isSafeInteger: number_isSafeInteger,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-77 |   // parseFloat: number_parseFloat,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-78 |   // parseInt: number_parseInt,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-79 | } = Number
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases.ts:64:14
+     | 
+> 64 | export const {
+     |              ^
+> 65 |   EPSILON: number_EPSILON,
+    ...
+> 78 |   // parseInt: number_parseInt,
+> 79 | } = Number
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases.ts:81:14
-   | 
-81 | export const {
-   |              ^
-   | 
-82 |   asIntN: bigint_asIntN,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-83 |   asUintN: bigint_asUintN,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-84 | } = BigInt
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases.ts:81:14
+     | 
+> 81 | export const {
+     |              ^
+> 82 |   asIntN: bigint_asIntN,
+> 83 |   asUintN: bigint_asUintN,
+> 84 | } = BigInt
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases.ts:86:14
-   | 
-86 | export const {
-   |              ^
-   | 
-87 |   // fromCharCode: string_fromCharCode,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-88 |   fromCodePoint: string_fromCodePoint,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-89 |   raw: string_raw,
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-90 | } = String
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases.ts:86:14
+     | 
+> 86 | export const {
+     |              ^
+> 87 |   // fromCharCode: string_fromCharCode,
+> 88 |   fromCodePoint: string_fromCodePoint,
+> 89 |   raw: string_raw,
+> 90 | } = String
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-  --> /src/builtin_aliases.ts:92:14
-   | 
-92 | export const {
-   |              ^
-   | 
-93 |   parse: json_parse,
-   | ^^^^^^^^^^^^^^^^^^^^
-   | 
-94 |   stringify: json_stringify,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-95 | } = JSON
-   | ^
-   = hint: separate each destructured symbol into its own export statement
+    --> /src/builtin_aliases.ts:92:14
+     | 
+> 92 | export const {
+     |              ^
+> 93 |   parse: json_parse,
+> 94 |   stringify: json_stringify,
+> 95 | } = JSON
+     | ^
+     = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-   --> /src/builtin_aliases.ts:97:14
-    | 
- 97 | export const {
-    |              ^
-    | 
- 98 |   all: promise_all,
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
- 99 |   allSettled: promise_allSettled,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-100 |   any: promise_any,
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-101 |   race: promise_race,
-    | ^^^^^^^^^^^^^^^^^^^^^
-    | 
-102 |   // reject: promise_reject,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-103 |   // resolve: promise_resolve,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-104 | } = Promise
-    | ^
-    = hint: separate each destructured symbol into its own export statement
+     --> /src/builtin_aliases.ts:97:14
+      | 
+>  97 | export const {
+      |              ^
+>  98 |   all: promise_all,
+     ...
+> 103 |   // resolve: promise_resolve,
+> 104 | } = Promise
+      | ^
+      = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-   --> /src/builtin_aliases.ts:106:14
-    | 
-106 | export const {
-    |              ^
-    | 
-107 |   error: response_error,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-108 |   json: response_json,
-    | ^^^^^^^^^^^^^^^^^^^^^^
-    | 
-109 |   redirect: response_redirect,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-110 | } = Response
-    | ^
-    = hint: separate each destructured symbol into its own export statement
+     --> /src/builtin_aliases.ts:106:14
+      | 
+> 106 | export const {
+      |              ^
+> 107 |   error: response_error,
+> 108 |   json: response_json,
+> 109 |   redirect: response_redirect,
+> 110 | } = Response
+      | ^
+      = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-   --> /src/builtin_aliases.ts:120:14
-    | 
-120 | export const {
-    |              ^
-    | 
-121 |   // assign: object_assign,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-122 |   create: object_create,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-123 |   defineProperties: object_defineProperties,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-124 |   // defineProperty: object_defineProperty,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-125 |   // entries: object_entries,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-126 |   freeze: object_freeze,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-127 |   // fromEntries: object_fromEntries,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-128 |   getOwnPropertyDescriptor: object_getOwnPropertyDescriptor,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-129 |   getOwnPropertyDescriptors: object_getOwnPropertyDescriptors,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-130 |   getOwnPropertyNames: object_getOwnPropertyNames,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-131 |   getOwnPropertySymbols: object_getOwnPropertySymbols,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-132 |   // getPrototypeOf: object_getPrototypeOf,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-133 |   hasOwn: object_hasOwn,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-134 |   is: object_is,
-    | ^^^^^^^^^^^^^^^^
-    | 
-135 |   isExtensible: object_isExtensible,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-136 |   isFrozen: object_isFrozen,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-137 |   isSealed: object_isSealed,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-138 |   // keys: object_keys,
-    | ^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-139 |   preventExtensions: object_preventExtensions,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-140 |   seal: object_seal,
-    | ^^^^^^^^^^^^^^^^^^^^
-    | 
-141 |   setPrototypeOf: object_setPrototypeOf,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-142 |   // values: object_values,
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | 
-143 | } = Object
-    | ^
-    = hint: separate each destructured symbol into its own export statement
+     --> /src/builtin_aliases.ts:120:14
+      | 
+> 120 | export const {
+      |              ^
+> 121 |   // assign: object_assign,
+     ...
+> 142 |   // values: object_values,
+> 143 | } = Object
+      | ^
+      = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring
 
 
 error[unsupported-destructuring]: found destructuring, which is not supported in the public API
-   --> /src/builtin_aliases.ts:145:14
-    | 
-145 | export const {
-    |              ^
-    | 
-146 |   UTC: date_UTC,
-    | ^^^^^^^^^^^^^^^^
-    | 
-147 |   // now: date_now,
-    | ^^^^^^^^^^^^^^^^^^^
-    | 
-148 |   parse: date_parse,
-    | ^^^^^^^^^^^^^^^^^^^^
-    | 
-149 | } = Date
-    | ^
-    = hint: separate each destructured symbol into its own export statement
+     --> /src/builtin_aliases.ts:145:14
+      | 
+> 145 | export const {
+      |              ^
+> 146 |   UTC: date_UTC,
+> 147 |   // now: date_now,
+> 148 |   parse: date_parse,
+> 149 | } = Date
+      | ^
+      = hint: separate each destructured symbol into its own export statement
 
   info: destructuring can not be inferred by fast check
   docs: https://jsr.io/go/slow-type-unsupported-destructuring

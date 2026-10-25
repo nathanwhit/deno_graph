@@ -113,42 +113,17 @@ error[missing-explicit-return-type]: missing explicit return type in the public 
 
 
 error[missing-explicit-return-type]: missing explicit return type in the public API
-  --> /src/funcdefs.ts:65:60
-   | 
-65 | export const log_get_request = /* @__PURE__ */ DEBUG.LOG ? (all_signals_get: (id: ID) => Signal<any> | undefined, observed_id: FROM_ID, observer_id?: TO_ID | UNTRACKED_ID) => {
-   |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-66 |   const
-   | ^^^^^^^
-   | 
-67 |     observed_signal = all_signals_get(observed_id)!,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-68 |     observer_signal = observer_id ? all_signals_get(observer_id)! : { name: "untracked" }
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-69 |   console.log(
-   | ^^^^^^^^^^^^^^
-   | 
-70 |     "GET:\t", observed_signal.name,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-71 |     "\tby OBSERVER:\t", observer_signal.name,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-72 |     // @ts-ignore:
-   | ^^^^^^^^^^^^^^^^^^
-   | 
-73 |     "\twith VALUE\t", observed_signal.value,
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | 
-74 |   )
-   | ^^^
-   | 
-75 | } : noop
-   | ^ this function is missing an explicit return type
-   | 
-   = hint: add an explicit return type of 'void' or 'never' to the function
+    --> /src/funcdefs.ts:65:60
+     | 
+> 65 | export const log_get_request = /* @__PURE__ */ DEBUG.LOG ? (all_signals_get: (id: ID) => Signal<any> | undefined, observed_id: FROM_ID, observer_id?: TO_ID | UNTRACKED_ID) => {
+     |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 66 |   const
+    ...
+> 74 |   )
+> 75 | } : noop
+     | ^ this function is missing an explicit return type
+     | 
+     = hint: add an explicit return type of 'void' or 'never' to the function
 
   info: all functions in the public API must have an explicit return type
   info: function expressions without a return statement can have a return type of either 'void' or 'never'
