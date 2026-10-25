@@ -338,14 +338,17 @@ impl DepsFiller<'_> {
   }
 
   fn visit_type_if_type_assertion(&mut self, expr: &Expression<'_>) -> bool {
-    if matches!(
-      expr,
-      Expression::TSAsExpression(_) | Expression::TSTypeAssertion(_)
-    ) {
-      self.visit_expression(expr);
-      true
-    } else {
-      false
+    match expr {
+      // `expr as const` is a const assertion, not a type assertion (swc models
+      // it as a separate node); its value is only walked when visiting exprs
+      Expression::TSAsExpression(n) if ts_type_is_const(&n.type_annotation) => {
+        false
+      }
+      Expression::TSAsExpression(_) | Expression::TSTypeAssertion(_) => {
+        self.visit_expression(expr);
+        true
+      }
+      _ => false,
     }
   }
 }

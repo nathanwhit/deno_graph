@@ -616,6 +616,10 @@ impl<'a> SymbolNodeRef<'a> {
         }
         PropertyKey::StringLiteral(n) => Some(n.value.to_str_lossy()),
         PropertyKey::NumericLiteral(n) => Some(Cow::Owned(n.value.to_string())),
+        PropertyKey::BigIntLiteral(n) => Some(Cow::Owned(n.value.to_string())),
+        // a computed key that is an identifier (ex. `[paramDesc]`) is named
+        // after the identifier
+        PropertyKey::Identifier(n) => Some(Cow::Borrowed(n.name.as_str())),
         _ => None,
       }
     }
@@ -2804,7 +2808,9 @@ impl<'a> SymbolFiller<'a> {
               SymbolDeclKind::Definition(SymbolNode(
                 SymbolNodeInner::TsNamespace(inner_decl),
               )),
-              inner_decl.span,
+              // the nested declaration is located at the outer `namespace`
+              // keyword like it was with swc
+              n.span,
             ),
             previous_symbol.symbol_id(),
           );

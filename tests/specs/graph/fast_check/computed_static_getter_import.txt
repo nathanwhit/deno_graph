@@ -1,0 +1,131 @@
+# https://jsr.io/@scope/a/meta.json
+{"versions": { "1.0.0": {} } }
+
+# https://jsr.io/@scope/a/1.0.0_meta.json
+{ "exports": { ".": "./mod.ts" } }
+
+# https://jsr.io/@scope/a/1.0.0/mod.ts
+import { paramDesc, ParamDesc } from "./other.ts";
+
+export class Foo {
+  static get [paramDesc](): ParamDesc {
+    return [];
+  }
+}
+
+# https://jsr.io/@scope/a/1.0.0/other.ts
+export const paramDesc = Symbol("paramDesc");
+export type ParamDesc = string[];
+
+# mod.ts
+import 'jsr:@scope/a'
+
+# output
+{
+  "roots": [
+    "file:///mod.ts"
+  ],
+  "modules": [
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "jsr:@scope/a",
+          "code": {
+            "specifier": "jsr:@scope/a",
+            "resolutionMode": "import",
+            "span": {
+              "start": {
+                "line": 0,
+                "character": 7
+              },
+              "end": {
+                "line": 0,
+                "character": 21
+              }
+            }
+          }
+        }
+      ],
+      "size": 22,
+      "mediaType": "TypeScript",
+      "specifier": "file:///mod.ts"
+    },
+    {
+      "kind": "esm",
+      "dependencies": [
+        {
+          "specifier": "./other.ts",
+          "code": {
+            "specifier": "https://jsr.io/@scope/a/1.0.0/other.ts",
+            "resolutionMode": "import",
+            "span": {
+              "start": {
+                "line": 0,
+                "character": 37
+              },
+              "end": {
+                "line": 0,
+                "character": 49
+              }
+            }
+          }
+        }
+      ],
+      "size": 132,
+      "mediaType": "TypeScript",
+      "specifier": "https://jsr.io/@scope/a/1.0.0/mod.ts"
+    },
+    {
+      "kind": "esm",
+      "size": 80,
+      "mediaType": "TypeScript",
+      "specifier": "https://jsr.io/@scope/a/1.0.0/other.ts"
+    }
+  ],
+  "redirects": {
+    "jsr:@scope/a": "https://jsr.io/@scope/a/1.0.0/mod.ts"
+  },
+  "packages": {
+    "@scope/a@*": "@scope/a@1.0.0"
+  }
+}
+
+Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
+  {
+    "./other.ts": {
+      "code": {
+        "specifier": "https://jsr.io/@scope/a/1.0.0/other.ts",
+        "resolutionMode": "import",
+        "span": {
+          "start": {
+            "line": 0,
+            "character": 37
+          },
+          "end": {
+            "line": 0,
+            "character": 49
+          }
+        }
+      }
+    }
+  }
+  import { paramDesc, ParamDesc } from "./other.ts";
+  export class Foo {
+    static get [paramDesc](): ParamDesc {
+      return {} as never;
+    }
+  }
+  --- DTS ---
+  import { paramDesc, ParamDesc } from "./other.ts";
+  export declare class Foo {
+    static get [paramDesc](): ParamDesc;
+  }
+
+Fast check https://jsr.io/@scope/a/1.0.0/other.ts:
+  {}
+  export const paramDesc: unique symbol = {} as never;
+  export type ParamDesc = string[];
+  --- DTS ---
+  export declare const paramDesc: unique symbol;
+  export type ParamDesc = string[];

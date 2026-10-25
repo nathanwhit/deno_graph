@@ -163,7 +163,7 @@ file:///mod.ts: EsModuleInfo {
                         ),
                     ),
                     range: Span {
-                        start: 91,
+                        start: 70,
                         end: 132,
                     },
                     flags: 0,

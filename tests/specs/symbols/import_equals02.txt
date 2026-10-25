@@ -124,7 +124,7 @@ file:///a.ts: EsModuleInfo {
                         ),
                     ),
                     range: Span {
-                        start: 12,
+                        start: 0,
                         end: 180,
                     },
                     flags: 0,
