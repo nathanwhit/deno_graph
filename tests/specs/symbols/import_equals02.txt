@@ -348,7 +348,6 @@ file:///mod.ts: EsModuleInfo {
                 },
             ],
             child_ids: {
-                2,
                 3,
             },
             exports: {
@@ -395,10 +394,14 @@ file:///mod.ts: EsModuleInfo {
             ),
             decls: [
                 SymbolDecl {
-                    kind: Definition(
-                        SymbolNode(
-                            <node @ 29..65>,
+                    kind: QualifiedTarget(
+                        (
+                            "Test",
+                            3,
                         ),
+                        [
+                            "Inner",
+                        ],
                     ),
                     range: Span {
                         start: 29,
@@ -500,5 +503,16 @@ file:///mod.ts: EsModuleInfo {
     },
 }
 == export definitions ==
-[MyExport]: file:///mod.ts:29..65
-  export import MyExport = Test.Inner;
+[MyExport]: file:///a.ts:18..65
+  export interface Other {
+      prop1: string;
+    }
+file:///a.ts:68..115
+  export interface Other {
+      prop2: string;
+    }
+file:///a.ts:118..178
+  export namespace Other {
+      export class MyTest {
+      }
+    }

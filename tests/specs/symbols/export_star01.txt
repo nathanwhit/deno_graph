@@ -694,8 +694,8 @@ file:///mod.ts: EsModuleInfo {
                         },
                     ),
                     range: Span {
-                        start: 0,
-                        end: 36,
+                        start: 7,
+                        end: 21,
                     },
                     flags: 0,
                 },
@@ -707,5 +707,5 @@ file:///mod.ts: EsModuleInfo {
     },
 }
 == export definitions ==
-[namespace]: file:///mod.ts:0..36
-  export * as namespace from "./a.ts";
+[namespace]: file:///mod.ts:7..21
+  * as namespace

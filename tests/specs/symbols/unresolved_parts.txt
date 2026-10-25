@@ -71,9 +71,6 @@ file:///mod.ts: EsModuleInfo {
             ],
             child_ids: {
                 2,
-                4,
-                5,
-                7,
             },
             exports: {
                 "Resolved": 4,
@@ -176,10 +173,14 @@ file:///mod.ts: EsModuleInfo {
             ),
             decls: [
                 SymbolDecl {
-                    kind: Definition(
-                        SymbolNode(
-                            <node @ 86..121>,
+                    kind: QualifiedTarget(
+                        (
+                            "Test",
+                            2,
                         ),
+                        [
+                            "test",
+                        ],
                     ),
                     range: Span {
                         start: 86,
@@ -202,10 +203,14 @@ file:///mod.ts: EsModuleInfo {
             ),
             decls: [
                 SymbolDecl {
-                    kind: Definition(
-                        SymbolNode(
-                            <node @ 122..163>,
+                    kind: QualifiedTarget(
+                        (
+                            "Test",
+                            2,
                         ),
+                        [
+                            "NotFound",
+                        ],
                     ),
                     range: Span {
                         start: 122,
@@ -257,10 +262,14 @@ file:///mod.ts: EsModuleInfo {
             ),
             decls: [
                 SymbolDecl {
-                    kind: Definition(
-                        SymbolNode(
-                            <node @ 208..252>,
+                    kind: QualifiedTarget(
+                        (
+                            "other",
+                            1,
                         ),
+                        [
+                            "NotFound",
+                        ],
                     ),
                     range: Span {
                         start: 208,
@@ -345,11 +354,11 @@ file:///other.ts: EsModuleInfo {
     },
 }
 == export definitions ==
-[Resolved]: file:///mod.ts:86..121
-  export import Resolved = Test.test;
-[Unresolved]: file:///mod.ts:122..163
-  export import Unresolved = Test.NotFound;
+[Resolved]: file:///mod.ts:57..82
+  export function test() {}
+[Unresolved]: file:///mod.ts
+  Unresolved Part("NotFound") (["NotFound"])
 [NonExistent]: file:///other.ts
   Unresolved Part("NonExistent") ([])
-[NonExistent2]: file:///mod.ts:208..252
-  export import NonExistent2 = other.NotFound;
+[NonExistent2]: file:///other.ts
+  Unresolved Part("NotFound") (["NotFound"])

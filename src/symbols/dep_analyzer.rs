@@ -183,9 +183,6 @@ impl DepsFiller<'_> {
         ExportDeclRef::TsTypeAlias(n) => {
           self.visit_ts_type_alias_declaration(n)
         }
-        ExportDeclRef::TsImportEquals(_) => {
-          // no deps to analyze
-        }
       },
       SymbolNodeRef::ExportDefaultDecl(n) => {
         self.fill_export_default_declaration_kind(&n.declaration);

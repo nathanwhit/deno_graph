@@ -82,9 +82,13 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   export type Status = typeof STATUS_CODE.Continue;
   --- DTS ---
   export declare const STATUS_CODE: {
+    /** RFC 7231, 6.2.1 */
     readonly Continue: number;
+    /** RFC 7231, 6.2.2 */
     readonly SwitchingProtocols: number;
+    /** RFC 2518, 10.1 */
     readonly Processing: number;
+    /** RFC 8297 **/
     readonly EarlyHints: number;
   };
   export type Status = typeof STATUS_CODE.Continue;

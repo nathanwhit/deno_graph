@@ -23,6 +23,7 @@ use indexmap::IndexSet;
 
 use super::helpers::Id;
 use super::helpers::ToId;
+use super::helpers::export_all_specifier_span;
 
 use crate::JsModule;
 use crate::JsonModule;
@@ -272,6 +273,7 @@ impl<'a> RootSymbol<'a> {
     let module_id = ModuleId(self.ids_to_modules.len() as u32);
     let filler = SymbolFiller {
       is_declaration,
+      source_text: program.source_text,
       builder: ModuleBuilder::new(module_id),
       scoping,
     };
@@ -438,9 +440,6 @@ impl<'a> SymbolNode<'a> {
             SymbolNodeInnerExportDecl::TsTypeAlias(n) => {
               ExportDeclRef::TsTypeAlias(n)
             }
-            SymbolNodeInnerExportDecl::TsImportEquals(n) => {
-              ExportDeclRef::TsImportEquals(n)
-            }
           },
         ))
       }
@@ -509,7 +508,6 @@ enum SymbolNodeInnerExportDecl<'a> {
   TsInterface(&'a TSInterfaceDeclaration<'a>),
   TsNamespace(&'a TSNamespaceDeclaration<'a>),
   TsTypeAlias(&'a TSTypeAliasDeclaration<'a>),
-  TsImportEquals(&'a TSImportEqualsDeclaration<'a>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -563,7 +561,6 @@ pub enum ExportDeclRef<'a> {
   TsInterface(&'a TSInterfaceDeclaration<'a>),
   TsModule(&'a TSNamespaceDeclaration<'a>),
   TsTypeAlias(&'a TSTypeAliasDeclaration<'a>),
-  TsImportEquals(&'a TSImportEqualsDeclaration<'a>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -662,9 +659,6 @@ impl<'a> SymbolNodeRef<'a> {
         }
         ExportDeclRef::TsModule(n) => Some(Cow::Borrowed(&n.id.name)),
         ExportDeclRef::TsTypeAlias(n) => {
-          Some(Cow::Borrowed(n.id.name.as_str()))
-        }
-        ExportDeclRef::TsImportEquals(n) => {
           Some(Cow::Borrowed(n.id.name.as_str()))
         }
       },
@@ -792,9 +786,7 @@ impl<'a> SymbolNodeRef<'a> {
         ExportDeclRef::Class(_)
         | ExportDeclRef::TsEnum(_)
         | ExportDeclRef::TsInterface(_) => true,
-        ExportDeclRef::TsTypeAlias(_)
-        | ExportDeclRef::Var(..)
-        | ExportDeclRef::TsImportEquals(_) => false,
+        ExportDeclRef::TsTypeAlias(_) | ExportDeclRef::Var(..) => false,
       },
       SymbolNodeRef::Module(_)
       | SymbolNodeRef::ClassDecl(_)
@@ -1001,8 +993,7 @@ impl<'a> SymbolNodeRef<'a> {
         }
         ExportDeclRef::Class(_)
         | ExportDeclRef::TsEnum(_)
-        | ExportDeclRef::TsModule(_)
-        | ExportDeclRef::TsImportEquals(_) => (true, true),
+        | ExportDeclRef::TsModule(_) => (true, true),
       },
       SymbolNodeRef::ExportDefaultDecl(n) => match &n.declaration {
         ExportDefaultDeclarationKind::FunctionDeclaration(_) => (true, false),
@@ -2011,6 +2002,7 @@ impl<'a> ModuleBuilder<'a> {
 
 struct SymbolFiller<'a> {
   is_declaration: bool,
+  source_text: &'a str,
   builder: ModuleBuilder<'a>,
   /// Scope/symbol information from semantic analysis, used to disambiguate
   /// same-named identifiers across scopes when computing `Id`s.
@@ -2185,7 +2177,7 @@ impl<'a> SymbolFiller<'a> {
           let export_name = module_export_name_to_string(exported);
           let symbol =
             self.builder.create_new_symbol(module_symbol.symbol_id());
-          let decl_span = n.span;
+          let decl_span = export_all_specifier_span(n, self.source_text);
           symbol.add_decl(SymbolDecl::new(
             SymbolDeclKind::FileRef(FileDep {
               name: FileDepName::Star,
@@ -2201,7 +2193,11 @@ impl<'a> SymbolFiller<'a> {
         }
       }
       Statement::TSImportEqualsDeclaration(import_equals) => {
-        self.ensure_symbol_for_import_equals(import_equals, module_symbol);
+        self.ensure_symbol_for_import_equals(
+          import_equals,
+          import_equals.span,
+          module_symbol,
+        );
       }
       Statement::TSExportAssignment(export_assignment) => {
         self.handle_export_default_expr_from_assignment(
@@ -2559,21 +2555,14 @@ impl<'a> SymbolFiller<'a> {
         // ignore
       }
       Declaration::TSImportEqualsDeclaration(n) => {
-        let symbol_id = self.builder.ensure_symbol_for_swc_id(
-          n.id.to_id(self.scoping.as_ref()),
-          SymbolDecl::new(
-            SymbolDeclKind::Definition(SymbolNode(
-              SymbolNodeInner::ExportDecl(
-                export_decl,
-                SymbolNodeInnerExportDecl::TsImportEquals(n.as_ref()),
-              ),
-            )),
-            export_decl.span,
-          ),
-          module_symbol.symbol_id(),
+        // `export import X = A.B` is an exported alias of its target, so it
+        // resolves through the target like a non-exported import equals
+        let symbol_id = self.ensure_symbol_for_import_equals(
+          n,
+          export_decl.span,
+          module_symbol,
         );
         module_symbol.add_export(n.id.name.to_string(), symbol_id);
-        module_symbol.add_child_id(symbol_id);
       }
     }
   }
@@ -2685,6 +2674,7 @@ impl<'a> SymbolFiller<'a> {
   fn ensure_symbol_for_import_equals(
     &self,
     import_equals: &TSImportEqualsDeclaration,
+    decl_span: Span,
     parent_symbol: &SymbolMut,
   ) -> SymbolId {
     let id = import_equals.id.to_id(self.scoping.as_ref());
@@ -2698,7 +2688,7 @@ impl<'a> SymbolFiller<'a> {
           id,
           SymbolDecl::new(
             SymbolDeclKind::QualifiedTarget(leftmost_id, parts),
-            import_equals.span,
+            decl_span,
           ),
           parent_symbol.symbol_id(),
         )
@@ -2712,7 +2702,7 @@ impl<'a> SymbolFiller<'a> {
           id,
           SymbolDecl::new(
             SymbolDeclKind::QualifiedTarget(leftmost_id, parts),
-            import_equals.span,
+            decl_span,
           ),
           parent_symbol.symbol_id(),
         )
@@ -2725,7 +2715,7 @@ impl<'a> SymbolFiller<'a> {
               name: FileDepName::Name("default".to_string()),
               specifier: module_ref.expression.value.to_string_lossy(),
             }),
-            import_equals.span,
+            decl_span,
           ),
           parent_symbol.symbol_id(),
         )

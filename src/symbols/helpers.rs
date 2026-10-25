@@ -1,11 +1,14 @@
 // Copyright 2018-2024 the Deno authors. MIT license.
 
 use deno_ast::oxc::ast::ast::BindingIdentifier;
+use deno_ast::oxc::ast::ast::ExportAllDeclaration;
 use deno_ast::oxc::ast::ast::IdentifierName;
 use deno_ast::oxc::ast::ast::IdentifierReference;
 use deno_ast::oxc::ast::ast::TSQualifiedName;
 use deno_ast::oxc::ast::ast::TSTypeName;
 use deno_ast::oxc::semantic::Scoping;
+use deno_ast::oxc::span::GetSpan;
+use deno_ast::oxc::span::Span;
 
 /// In OXC, the equivalent of SWC's `Id` is `(String, usize)`. The second
 /// component is a scope discriminator: SWC uses a `SyntaxContext`, and the
@@ -109,4 +112,23 @@ pub fn ts_qualified_name_parts(
       }
     }
   }
+}
+
+/// The span of the `* as name` part of `export * as name from "..."` (the
+/// specifier span swc reported for it), or the whole declaration for a bare
+/// `export * from "..."`.
+pub fn export_all_specifier_span(
+  n: &ExportAllDeclaration,
+  source_text: &str,
+) -> Span {
+  let Some(exported) = &n.exported else {
+    return n.span;
+  };
+  let exported_span = exported.span();
+  let start = source_text
+    .get(n.span.start as usize..exported_span.start as usize)
+    .and_then(|text| text.find('*'))
+    .map(|index| n.span.start + index as u32)
+    .unwrap_or(n.span.start);
+  Span::new(start, exported_span.end)
 }

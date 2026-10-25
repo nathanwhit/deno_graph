@@ -44,6 +44,7 @@ use super::helpers::ReturnStatementAnalysis;
 use super::helpers::TSKeywordKind;
 use super::helpers::analyze_return_stmts_in_function_body;
 use super::helpers::any_type_ann;
+use super::helpers::is_global_ident;
 use super::helpers::is_void_type;
 use super::helpers::maybe_lit_to_ts_type;
 use super::helpers::object_freeze_call_arg;
@@ -54,6 +55,7 @@ use super::range_finder::ModulePublicRanges;
 use super::transform_dts::FastCheckDtsDiagnostic;
 use super::transform_dts::FastCheckDtsTransformer;
 use crate::symbols::helpers::ToId;
+use crate::symbols::helpers::export_all_specifier_span;
 
 /// Comments management for fast check transforms.
 /// In OXC, comments are stored as `Vec<Comment>` in `Program.comments`.
@@ -593,7 +595,10 @@ impl<'a> FastCheckTransformer<'a> {
       }
       Statement::ExportAllDeclaration(n) => {
         let n = n.as_mut();
-        let retain = self.public_ranges.contains(&n.span);
+        let retain = self.public_ranges.contains(&export_all_specifier_span(
+          n,
+          self.es_module_info.source_text(),
+        ));
         if retain {
           self.transform_module_specifier(&mut n.source);
         }
@@ -848,8 +853,22 @@ impl<'a> FastCheckTransformer<'a> {
         })?;
         Ok(TransformItemResult::Remove)
       }
-      Declaration::TSImportEqualsDeclaration(_) => {
-        Ok(TransformItemResult::Remove)
+      Declaration::TSImportEqualsDeclaration(n) => {
+        // `export import X = A.B`
+        match &n.module_reference {
+          TSModuleReference::IdentifierReference(_)
+          | TSModuleReference::QualifiedName(_) => {
+            Ok(TransformItemResult::from_retain(
+              self.public_ranges.contains(&public_span),
+            ))
+          }
+          TSModuleReference::ExternalModuleReference(_) => {
+            self.mark_diagnostic(FastCheckDiagnostic::UnsupportedRequire {
+              range: self.source_range_to_range(public_span),
+            })?;
+            Ok(TransformItemResult::Remove)
+          }
+        }
       }
     }
   }
@@ -1462,6 +1481,7 @@ impl<'a> FastCheckTransformer<'a> {
         )?;
         param.decorators = OxcVec::new_in(&self.allocator);
       }
+      empty_rest_param_pattern(self.allocator, params);
     }
 
     Ok(true)
@@ -1602,6 +1622,7 @@ impl<'a> FastCheckTransformer<'a> {
         )?;
         param.decorators = OxcVec::new_in(&self.allocator);
       }
+      empty_rest_param_pattern(self.allocator, params);
     }
 
     n.r#async = false;
@@ -1668,26 +1689,10 @@ impl<'a> FastCheckTransformer<'a> {
       let return_expr =
         replacement_return_value(self.allocator, &t.type_annotation);
       match return_expr {
-        Some(e) if n.body.is_expression() => {
-          // Keep as expression
-          n.body = ArrowFunctionBody::from(paren_expr(self.allocator, e));
-        }
         Some(e) => {
-          let mut statements = OxcVec::with_capacity_in(1, &self.allocator);
-          statements.push(Statement::new_return_statement(
-            SPAN,
-            Some(paren_expr(self.allocator, e)),
-            &AstBuilder::new(self.allocator),
-          ));
-          n.body = ArrowFunctionBody::FunctionBody(OxcBox::new_in(
-            FunctionBody::new(
-              SPAN,
-              OxcVec::new_in(&self.allocator),
-              statements,
-              &AstBuilder::new(self.allocator),
-            ),
-            &self.allocator,
-          ));
+          // the body is replaced with the placeholder expression, so a block
+          // body becomes a concise expression body
+          n.body = ArrowFunctionBody::from(paren_expr(self.allocator, e));
         }
         None => {
           n.body = ArrowFunctionBody::FunctionBody(OxcBox::new_in(
@@ -1715,6 +1720,7 @@ impl<'a> FastCheckTransformer<'a> {
           optional_start_index.is_optional_at_index(i),
         )?;
       }
+      empty_rest_param_pattern(self.allocator, params);
     }
 
     Ok(())
@@ -2236,6 +2242,8 @@ impl<'a> FastCheckTransformer<'a> {
     comments: &mut CommentsMut<'a>,
     is_ambient: bool,
   ) -> Result<TransformItemResult, Vec<FastCheckDiagnostic>> {
+    // `module Foo {}` is a deprecated spelling of `namespace Foo {}`
+    n.kind = TSNamespaceDeclarationKind::Namespace;
     let ts_module_block = get_innermost_module_block(&mut n.body);
 
     // allow the above diagnostics to error before checking for a public range
@@ -2652,9 +2660,9 @@ impl<'a> FastCheckTransformer<'a> {
       _ => return false,
     };
 
-    let is_symbol_global = expr_ident.name == "Symbol";
-    // TODO: In OXC we don't have unresolved_context() in the same way.
-    // For now we check just the name. This may need refinement.
+    // `Symbol` must be the global, not a local binding with that name
+    let is_symbol_global = expr_ident.name == "Symbol"
+      && is_global_ident(expr_ident, self.es_module_info.scoping());
     if !is_symbol_global {
       return false;
     }
@@ -2723,25 +2731,20 @@ enum FunctionKind {
 }
 
 fn is_ts_private_computed_class_element(m: &ClassElement) -> bool {
+  // a computed key (`[123]`, `[Symbol.iterator]`) is one written with
+  // brackets, even when it is a literal
   match m {
     ClassElement::MethodDefinition(m) => {
-      if m.accessibility == Some(TSAccessibility::Private) {
-        is_computed_property_key(&m.key)
-      } else {
-        false
-      }
+      m.accessibility == Some(TSAccessibility::Private)
+        && (m.computed || is_computed_property_key(&m.key))
     }
     ClassElement::AccessorProperty(a) => {
-      if a.accessibility == Some(TSAccessibility::Private) {
-        is_computed_property_key(&a.key)
-      } else {
-        false
-      }
+      a.accessibility == Some(TSAccessibility::Private)
+        && (a.computed || is_computed_property_key(&a.key))
     }
-    ClassElement::PropertyDefinition(p)
-      if p.accessibility == Some(TSAccessibility::Private) =>
-    {
-      is_computed_property_key(&p.key)
+    ClassElement::PropertyDefinition(p) => {
+      p.accessibility == Some(TSAccessibility::Private)
+        && (p.computed || is_computed_property_key(&p.key))
     }
     _ => false,
   }
@@ -2749,9 +2752,12 @@ fn is_ts_private_computed_class_element(m: &ClassElement) -> bool {
 
 fn is_computed_property_key(key: &PropertyKey) -> bool {
   match key {
-    PropertyKey::StaticIdentifier(_) | PropertyKey::PrivateIdentifier(_) => {
-      false
-    }
+    PropertyKey::StaticIdentifier(_)
+    | PropertyKey::PrivateIdentifier(_)
+    // literal keys (`"a"`, `1`, `1n`) are statically known names
+    | PropertyKey::StringLiteral(_)
+    | PropertyKey::NumericLiteral(_)
+    | PropertyKey::BigIntLiteral(_) => false,
     _ => key.is_expression(),
   }
 }
@@ -3289,6 +3295,30 @@ fn is_new_expr_of_non_generic_class(
     }
     _ => false,
   })
+}
+
+/// Empties a destructured rest parameter pattern (`...[a, b]: T` ->
+/// `...[]: T`) since the bindings are not part of the public API and may
+/// reference pruned declarations through default values.
+fn empty_rest_param_pattern<'a>(
+  allocator: &'a Allocator,
+  params: &mut FormalParameters<'a>,
+) {
+  let Some(rest) = &mut params.rest else {
+    return;
+  };
+  match &mut rest.rest.argument {
+    BindingPattern::ArrayPattern(p) => {
+      p.elements = OxcVec::new_in(&allocator);
+      p.rest = None;
+    }
+    BindingPattern::ObjectPattern(p) => {
+      p.properties = OxcVec::new_in(&allocator);
+      p.rest = None;
+    }
+    BindingPattern::BindingIdentifier(_)
+    | BindingPattern::AssignmentPattern(_) => {}
+  }
 }
 
 fn get_innermost_module_block<'a, 'b>(

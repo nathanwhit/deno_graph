@@ -78,9 +78,7 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
     (...args: unknown[]): void;
     enabled: boolean;
   }
-  export const createDebug = (namespace: string): DebugFn => {
-    return {} as never;
-  };
+  export const createDebug = (namespace: string): DebugFn => ({}) as never;
   --- DTS ---
   export interface DebugFn {
     (...args: unknown[]): void;

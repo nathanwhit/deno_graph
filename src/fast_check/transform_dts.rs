@@ -522,7 +522,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                 match ts_type {
                   Some(ts_type) => {
                     members.push(TSSignature::new_ts_property_signature(
-                      SPAN,
+                      prop.span,
                       false,
                       false,
                       as_readonly,
@@ -550,7 +550,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                   };
                   members.push(TSSignature::TSMethodSignature(Box::new_in(
                     TSMethodSignature::new(
-                      SPAN,
+                      prop.span,
                       key,
                       computed,
                       false,
@@ -598,7 +598,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
 
               members.push(TSSignature::TSPropertySignature(Box::new_in(
                 TSPropertySignature::new(
-                  SPAN,
+                  prop.span,
                   computed,
                   false,
                   as_readonly,
@@ -1267,6 +1267,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
             // Regular method / getter / setter
             match valid_prop_name(self.allocator, self.scoping, &method.key) {
               Some(new_prop_name) => {
+                method.computed = is_computed_prop_key(&new_prop_name);
                 method.key = new_prop_name;
               }
               _ => {
@@ -1290,6 +1291,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
 
           match valid_prop_name(self.allocator, self.scoping, &prop.key) {
             Some(new_prop_name) => {
+              prop.computed = is_computed_prop_key(&new_prop_name);
               prop.key = new_prop_name;
             }
             _ => {
@@ -1747,6 +1749,20 @@ fn is_well_known_symbol_expr(
     return false;
   }
   WELL_KNOWN_SYMBOL_NAMES.contains(&member_expr.property.name.as_str())
+}
+
+/// Whether a property key must be emitted in computed (`[...]`) form.
+/// Literal keys produced by `valid_prop_name` (ex. `["a" as string]` -> `"a"`)
+/// are emitted as plain keys.
+fn is_computed_prop_key(key: &PropertyKey) -> bool {
+  !matches!(
+    key,
+    PropertyKey::StaticIdentifier(_)
+      | PropertyKey::PrivateIdentifier(_)
+      | PropertyKey::StringLiteral(_)
+      | PropertyKey::NumericLiteral(_)
+      | PropertyKey::BigIntLiteral(_)
+  )
 }
 
 fn valid_prop_name<'a>(

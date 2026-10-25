@@ -49,7 +49,6 @@ file:///mod.ts: EsModuleInfo {
                 },
             ],
             child_ids: {
-                1,
                 2,
             },
             exports: {
@@ -67,10 +66,14 @@ file:///mod.ts: EsModuleInfo {
             ),
             decls: [
                 SymbolDecl {
-                    kind: Definition(
-                        SymbolNode(
-                            <node @ 0..36>,
+                    kind: QualifiedTarget(
+                        (
+                            "Test",
+                            2,
                         ),
+                        [
+                            "Inner",
+                        ],
                     ),
                     range: Span {
                         start: 0,
@@ -142,5 +145,6 @@ file:///mod.ts: EsModuleInfo {
     },
 }
 == export definitions ==
-[MyExport]: file:///mod.ts:0..36
-  export import MyExport = Test.Inner;
+[MyExport]: file:///mod.ts:57..81
+  export class Inner {
+    }

@@ -144,7 +144,8 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
     private constructor() {}
     declare private method: any;
     declare private methodWithOverload: any;
-    declare private stringAndIdent: any;
+    declare private "stringAndIdent": any;
+    declare private "stringOnly": any;
   }
   export declare class AmbientPrivateMethodOverloadable {
     private constructor(value: string);
@@ -152,9 +153,12 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
     private method(value: string): string;
     private methodWithOverload(value: string): string;
     private methodWithOverload(): string;
+    private "stringAndIdent"(value: string): string;
     private stringAndIdent(): string;
+    private "stringOnly"(value: string): string;
+    private "stringOnly"(): string;
   }
-  export declare module Test {
+  export declare namespace Test {
     export class AmbientClassInModule {
       private constructor(value: string);
       private constructor(private: Private);
@@ -169,7 +173,8 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
     private constructor();
     private method: any;
     private methodWithOverload: any;
-    private stringAndIdent: any;
+    private "stringAndIdent": any;
+    private "stringOnly": any;
   }
   export declare class AmbientPrivateMethodOverloadable {
     private constructor(value: string);
@@ -177,9 +182,12 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
     private method(value: string): string;
     private methodWithOverload(value: string): string;
     private methodWithOverload(): string;
+    private "stringAndIdent"(value: string): string;
     private stringAndIdent(): string;
+    private "stringOnly"(value: string): string;
+    private "stringOnly"(): string;
   }
-  export declare module Test {
+  export declare namespace Test {
     export class AmbientClassInModule {
       private constructor(value: string);
       private constructor(private: Private);
