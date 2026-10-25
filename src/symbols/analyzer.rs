@@ -7,13 +7,13 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use deno_ast::oxc::ast::ast::Comment;
 use deno_ast::JSStrExt;
 use deno_ast::MediaType;
 use deno_ast::ModuleSpecifier;
 use deno_ast::ParsedSource;
 use deno_ast::SourceTextInfo;
 use deno_ast::oxc::allocator::CloneIn;
+use deno_ast::oxc::ast::ast::Comment;
 use deno_ast::oxc::ast::ast::*;
 use deno_ast::oxc::span::GetSpan;
 use deno_ast::oxc::span::Span;
