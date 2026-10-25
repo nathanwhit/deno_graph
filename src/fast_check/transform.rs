@@ -1896,6 +1896,7 @@ impl<'a> FastCheckTransformer<'a> {
         )?;
         if let BindingPattern::ArrayPattern(p) = &mut param.pattern {
           p.elements = OxcVec::new_in(&self.allocator);
+          p.rest = None;
         }
       }
       BindingPattern::ObjectPattern(_) => {
@@ -1905,6 +1906,7 @@ impl<'a> FastCheckTransformer<'a> {
         )?;
         if let BindingPattern::ObjectPattern(p) = &mut param.pattern {
           p.properties = OxcVec::new_in(&self.allocator);
+          p.rest = None;
         }
       }
     }
@@ -2114,6 +2116,7 @@ impl<'a> FastCheckTransformer<'a> {
           && let BindingPattern::ArrayPattern(p) = &mut assign.left
         {
           p.elements = OxcVec::new_in(&self.allocator);
+          p.rest = None;
         }
       }
       2 => {
@@ -2137,6 +2140,7 @@ impl<'a> FastCheckTransformer<'a> {
           && let BindingPattern::ObjectPattern(p) = &mut assign.left
         {
           p.properties = OxcVec::new_in(&self.allocator);
+          p.rest = None;
         }
       }
       _ => {
