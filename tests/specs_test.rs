@@ -100,9 +100,9 @@ fn run_graph_test(test: &CollectedTest) {
     builder.newest_dependency_date(
       options.newest_dependency_date.clone().unwrap_or_default(),
     );
+    builder.prefer_cached_jsr_versions(options.prefer_cached_jsr_versions);
     builder.skip_dynamic_deps(options.skip_dynamic_deps);
     builder.unstable_bytes_imports(options.unstable_bytes_imports);
-    builder.unstable_text_imports(options.unstable_text_imports);
     builder.unstable_css_imports(options.unstable_css_imports);
     builder.workspace_fast_check(options.workspace_fast_check);
     builder.fast_check_cache(options.fast_check_cache);
@@ -335,13 +335,13 @@ pub struct SpecOptions {
   pub fast_check_cache: bool,
   #[serde(default)]
   #[serde(skip_serializing_if = "is_false")]
+  pub prefer_cached_jsr_versions: bool,
+  #[serde(default)]
+  #[serde(skip_serializing_if = "is_false")]
   pub skip_dynamic_deps: bool,
   #[serde(default)]
   #[serde(skip_serializing_if = "is_false")]
   pub unstable_bytes_imports: bool,
-  #[serde(default)]
-  #[serde(skip_serializing_if = "is_false")]
-  pub unstable_text_imports: bool,
   #[serde(default)]
   #[serde(skip_serializing_if = "is_false")]
   pub unstable_css_imports: bool,
