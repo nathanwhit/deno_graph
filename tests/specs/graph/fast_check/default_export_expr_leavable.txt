@@ -78,13 +78,13 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   } as const;
   --- DTS ---
   declare const _dts_1: {
-    readonly ["application/1d-interleaved-parityfec"]: {
-      readonly ["source"]: "iana";
+    readonly "application/1d-interleaved-parityfec": {
+      readonly "source": "iana";
     };
-    readonly ["application/3gpdash-qoe-report+xml"]: {
-      readonly ["source"]: "iana";
-      readonly ["charset"]: "UTF-8";
-      readonly ["compressible"]: true;
+    readonly "application/3gpdash-qoe-report+xml": {
+      readonly "source": "iana";
+      readonly "charset": "UTF-8";
+      readonly "compressible": true;
     };
   };
   export default _dts_1;

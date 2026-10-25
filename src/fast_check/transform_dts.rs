@@ -6,22 +6,30 @@ use deno_ast::oxc::allocator::CloneIn;
 use deno_ast::oxc::allocator::Vec;
 use deno_ast::oxc::ast::ast::*;
 use deno_ast::oxc::ast::builder::AstBuilder;
+use deno_ast::oxc::semantic::Scoping;
 use deno_ast::oxc::span::GetSpan;
 use deno_ast::oxc::span::Ident;
 use deno_ast::oxc::span::SPAN;
 use deno_ast::oxc::span::Span;
+use deno_ast::oxc::syntax::operator::UnaryOperator;
+use std::collections::HashSet;
 
 use super::FastCheckDiagnosticRange;
 use super::helpers::DeclMutabilityKind;
 use super::helpers::TSKeywordKind;
 use super::helpers::any_type_ann;
+use super::helpers::is_global_ident;
 use super::helpers::maybe_lit_to_ts_type;
 use super::helpers::new_ident;
+use super::helpers::object_freeze_call_arg;
+use super::helpers::tpl_to_ts_type;
 use super::helpers::ts_keyword_type;
 use super::helpers::ts_readonly;
 use super::helpers::ts_tuple_element;
 use super::helpers::type_ann;
 use super::range_finder::ModulePublicRanges;
+use crate::symbols::helpers::Id;
+use crate::symbols::helpers::ToId;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum FastCheckDtsDiagnostic {
@@ -72,6 +80,18 @@ pub struct FastCheckDtsTransformer<'a, 'b> {
   public_ranges: &'b ModulePublicRanges,
   pub diagnostics: std::vec::Vec<FastCheckDtsDiagnostic>,
   specifier: &'b ModuleSpecifier,
+  scoping: Option<&'b Scoping>,
+  /// Bindings that are known to have a non-widening inferable type, so
+  /// referencing them via `typeof` in the emitted declaration is sound
+  /// (function and class declarations, and consts that are explicitly
+  /// typed or initialized with a function).
+  typeof_safe_ids: HashSet<Id>,
+  /// Module level class declarations without type parameters, whose `new`
+  /// expressions have the class instance type.
+  non_generic_class_ids: HashSet<Id>,
+  /// Module level bindings known to have an array or tuple type, which is
+  /// required for a `...typeof ident` tuple rest element to be valid.
+  array_typed_ids: HashSet<Id>,
   is_top_level: bool,
 }
 
@@ -81,6 +101,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
     text_info: &'b SourceTextInfo,
     public_ranges: &'b ModulePublicRanges,
     specifier: &'b ModuleSpecifier,
+    scoping: Option<&'b Scoping>,
   ) -> Self {
     Self {
       allocator,
@@ -89,8 +110,16 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
       specifier,
       public_ranges,
       diagnostics: vec![],
+      scoping,
+      typeof_safe_ids: HashSet::new(),
+      non_generic_class_ids: HashSet::new(),
+      array_typed_ids: HashSet::new(),
       is_top_level: true,
     }
+  }
+
+  fn builder(&self) -> AstBuilder<'a> {
+    AstBuilder::new(self.allocator)
   }
 
   fn gen_unique_name(&mut self) -> String {
@@ -130,6 +159,10 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
 
   pub fn transform(&mut self, mut program: Program<'a>) -> Program<'a> {
     self.is_top_level = true;
+    let prescanned_ids = prescan_module_ids(&program, self.scoping);
+    self.typeof_safe_ids = prescanned_ids.typeof_safe;
+    self.non_generic_class_ids = prescanned_ids.non_generic_classes;
+    self.array_typed_ids = prescanned_ids.array_typed;
     let body =
       std::mem::replace(&mut program.body, Vec::new_in(&self.allocator));
     program.body = self.transform_stmts(body);
@@ -154,9 +187,11 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
             continue; // skip implementation signature
           }
 
-          match self
-            .decl_to_type_decl(export_decl.declaration.clone_in(self.allocator))
-          {
+          match self.decl_to_type_decl(
+            export_decl
+              .declaration
+              .clone_in_with_semantic_ids(self.allocator),
+          ) {
             Some(new_decl) => {
               new_items.push(Statement::new_export_declaration(
                 export_decl.span,
@@ -179,7 +214,8 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         Statement::ExportDefaultDeclaration(export_decl) => {
           match &export_decl.declaration {
             ExportDefaultDeclarationKind::ClassDeclaration(_) => {
-              let mut cloned = export_decl.clone_in(self.allocator);
+              let mut cloned =
+                export_decl.clone_in_with_semantic_ids(self.allocator);
               if let ExportDefaultDeclarationKind::ClassDeclaration(
                 ref mut class_expr,
               ) = cloned.declaration
@@ -193,7 +229,8 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                 continue; // skip implementation signature
               }
 
-              let mut cloned = export_decl.clone_in(self.allocator);
+              let mut cloned =
+                export_decl.clone_in_with_semantic_ids(self.allocator);
               if let ExportDefaultDeclarationKind::FunctionDeclaration(
                 ref mut fn_expr,
               ) = cloned.declaration
@@ -219,7 +256,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
               let expr = Some(
                 export_decl
                   .declaration
-                  .clone_in(self.allocator)
+                  .clone_in_with_semantic_ids(self.allocator)
                   .into_expression(),
               );
 
@@ -236,7 +273,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                   declarations.push(VariableDeclarator::new(
                     SPAN,
                     BindingPattern::BindingIdentifier(Box::new_in(
-                      name_ident.clone_in(self.allocator),
+                      name_ident.clone_in_with_semantic_ids(self.allocator),
                       &self.allocator,
                     )),
                     Some(ta),
@@ -340,7 +377,9 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
       | Declaration::FunctionDeclaration(_)
       | Declaration::VariableDeclaration(_)
       | Declaration::TSNamespaceDeclaration(_) => {
-        match self.decl_to_type_decl(decl.clone_in(self.allocator)) {
+        match self
+          .decl_to_type_decl(decl.clone_in_with_semantic_ids(self.allocator))
+        {
           Some(new_decl) => Some(Statement::from(new_decl)),
           _ => {
             self.mark_diagnostic_unable_to_infer(decl.span());
@@ -378,16 +417,49 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
               )));
             }
             ArrayExpressionElement::SpreadElement(spread) => {
-              match self.expr_to_ts_type(
-                &spread.argument,
-                as_const,
-                as_readonly,
-              ) {
-                Some(ts_expr) => {
-                  elem_types.push(ts_tuple_element(ts_expr));
+              // tuple types support spreading array types, so a spread of
+              // an identifier known to be array-typed can be represented
+              // as `...typeof ident` and a spread of an array literal as a
+              // rest of its tuple type
+              let rest_type = match &spread.argument {
+                Expression::Identifier(ident)
+                  if self
+                    .array_typed_ids
+                    .contains(&ident.to_id(self.scoping)) =>
+                {
+                  Some(TSType::new_ts_type_query(
+                    SPAN,
+                    TSTypeQueryExprName::new_identifier_reference(
+                      SPAN,
+                      ident.name,
+                      &self.builder(),
+                    ),
+                    None,
+                    &self.builder(),
+                  ))
                 }
-                _ => {
-                  self.mark_diagnostic_unable_to_infer(spread.span);
+                Expression::ArrayExpression(_) => {
+                  self.expr_to_ts_type(&spread.argument, as_const, false)
+                }
+                _ => None,
+              };
+              match rest_type {
+                Some(rest_type) => {
+                  elem_types.push(TSTupleElement::new_ts_rest_type(
+                    SPAN,
+                    rest_type,
+                    &self.builder(),
+                  ));
+                }
+                None => {
+                  // give up on the whole array rather than emitting a
+                  // tuple type that is missing elements
+                  self.mark_diagnostic(
+                    FastCheckDtsDiagnostic::UnableToInferTypeFromSpread {
+                      range: self.source_range_to_range(spread.span),
+                    },
+                  );
+                  return None;
                 }
               }
             }
@@ -399,7 +471,13 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                     elem_types.push(ts_tuple_element(ts_expr));
                   }
                   _ => {
+                    // fall back to `any` for the element so the tuple
+                    // keeps the correct number of elements
                     self.mark_diagnostic_unable_to_infer(e.span());
+                    elem_types.push(ts_tuple_element(ts_keyword_type(
+                      self.allocator,
+                      TSKeywordKind::Any,
+                    )));
                   }
                 }
               }
@@ -433,7 +511,30 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
           match item {
             ObjectPropertyKind::ObjectProperty(prop) => {
               if prop.shorthand {
-                self.mark_diagnostic_unsupported_prop(prop.span);
+                // `{ ident }` - reference the binding's type via `typeof`
+                // when that is sound
+                let ts_type = match &prop.value {
+                  Expression::Identifier(ident) => {
+                    self.ident_to_ts_type(ident, as_const)
+                  }
+                  _ => None,
+                };
+                match ts_type {
+                  Some(ts_type) => {
+                    members.push(TSSignature::new_ts_property_signature(
+                      SPAN,
+                      false,
+                      false,
+                      as_readonly,
+                      prop.key.clone_in_with_semantic_ids(self.allocator),
+                      Some(type_ann(self.allocator, ts_type)),
+                      &self.builder(),
+                    ));
+                  }
+                  None => {
+                    self.mark_diagnostic_unsupported_prop(prop.span);
+                  }
+                }
                 continue;
               }
 
@@ -454,10 +555,16 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                       computed,
                       false,
                       kind,
-                      func.type_parameters.clone_in(self.allocator),
-                      func.this_param.clone_in(self.allocator),
-                      func.params.clone_in(self.allocator),
-                      func.return_type.clone_in(self.allocator),
+                      func
+                        .type_parameters
+                        .clone_in_with_semantic_ids(self.allocator),
+                      func
+                        .this_param
+                        .clone_in_with_semantic_ids(self.allocator),
+                      func.params.clone_in_with_semantic_ids(self.allocator),
+                      func
+                        .return_type
+                        .clone_in_with_semantic_ids(self.allocator),
                       &AstBuilder::new(self.allocator),
                     ),
                     &self.allocator,
@@ -477,9 +584,17 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
               let (key, computed) =
                 self.prop_key_to_expr_key(&prop.key, prop.computed);
 
-              let init_type = self
-                .expr_to_ts_type(&prop.value, as_const, as_readonly)
-                .map(|t| type_ann(self.allocator, t));
+              let init_type = match self.expr_to_ts_type(
+                &prop.value,
+                as_const,
+                as_readonly,
+              ) {
+                Some(ts_type) => type_ann(self.allocator, ts_type),
+                None => {
+                  self.mark_diagnostic_any_fallback(prop.value.span());
+                  any_type_ann(self.allocator)
+                }
+              };
 
               members.push(TSSignature::TSPropertySignature(Box::new_in(
                 TSPropertySignature::new(
@@ -488,7 +603,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                   false,
                   as_readonly,
                   key,
-                  init_type,
+                  Some(init_type),
                   &AstBuilder::new(self.allocator),
                 ),
                 &self.allocator,
@@ -537,7 +652,11 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         if is_ts_const_type(&ts_as.type_annotation) {
           return self.expr_to_ts_type(&ts_as.expression, true, true);
         }
-        Some(ts_as.type_annotation.clone_in(self.allocator))
+        Some(
+          ts_as
+            .type_annotation
+            .clone_in_with_semantic_ids(self.allocator),
+        )
       }
       Expression::TSSatisfiesExpression(satisfies) => {
         self.expr_to_ts_type(&satisfies.expression, as_const, as_readonly)
@@ -548,13 +667,17 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         // Actually, OXC doesn't have a separate TsConstAssertion;
         // `as const` is represented as TSAsExpression with type TSTypeReference("const").
         // Let's just treat this as a type assertion and return the type.
-        Some(ts_assertion.type_annotation.clone_in(self.allocator))
+        Some(
+          ts_assertion
+            .type_annotation
+            .clone_in_with_semantic_ids(self.allocator),
+        )
       }
       Expression::FunctionExpression(fn_expr) => {
         let return_type = fn_expr
           .return_type
           .as_ref()
-          .map(|val| val.clone_in(self.allocator))
+          .map(|val| val.clone_in_with_semantic_ids(self.allocator))
           .unwrap_or_else(|| any_type_ann(self.allocator));
 
         let params = self.fn_params_to_ts_fn_params(&fn_expr.params);
@@ -562,7 +685,9 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         Some(TSType::TSFunctionType(Box::new_in(
           TSFunctionType::new(
             fn_expr.span,
-            fn_expr.type_parameters.clone_in(self.allocator),
+            fn_expr
+              .type_parameters
+              .clone_in_with_semantic_ids(self.allocator),
             None,
             params,
             return_type,
@@ -575,7 +700,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         let return_type = arrow_expr
           .return_type
           .as_ref()
-          .map(|val| val.clone_in(self.allocator))
+          .map(|val| val.clone_in_with_semantic_ids(self.allocator))
           .unwrap_or_else(|| any_type_ann(self.allocator));
 
         let params = self.fn_params_to_ts_fn_params(&arrow_expr.params);
@@ -583,7 +708,9 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         Some(TSType::TSFunctionType(Box::new_in(
           TSFunctionType::new(
             arrow_expr.span,
-            arrow_expr.type_parameters.clone_in(self.allocator),
+            arrow_expr
+              .type_parameters
+              .clone_in_with_semantic_ids(self.allocator),
             None,
             params,
             return_type,
@@ -592,22 +719,81 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
           &self.allocator,
         )))
       }
-      Expression::TemplateLiteral(_) => {
-        // Untagged template literals always produce strings.
-        Some(ts_keyword_type(self.allocator, TSKeywordKind::String))
+      Expression::TemplateLiteral(tpl) => Some(tpl_to_ts_type(
+        self.allocator,
+        tpl,
+        match as_const {
+          true => DeclMutabilityKind::Const,
+          false => DeclMutabilityKind::Mutable,
+        },
+      )),
+      Expression::Identifier(ident) => self.ident_to_ts_type(ident, as_const),
+      Expression::UnaryExpression(unary) => {
+        match (unary.operator, &unary.argument) {
+          (
+            UnaryOperator::UnaryNegation,
+            Expression::NumericLiteral(_) | Expression::BigIntLiteral(_),
+          ) => {
+            if as_const {
+              // `-1` is a valid literal type
+              Some(TSType::new_ts_literal_type(
+                unary.span,
+                TSLiteral::UnaryExpression(Box::new_in(
+                  unary.as_ref().clone_in_with_semantic_ids(self.allocator),
+                  &self.allocator,
+                )),
+                &self.builder(),
+              ))
+            } else {
+              let kind = match &unary.argument {
+                Expression::NumericLiteral(_) => TSKeywordKind::Number,
+                _ => TSKeywordKind::BigInt,
+              };
+              Some(ts_keyword_type(self.allocator, kind))
+            }
+          }
+          _ => None,
+        }
+      }
+      Expression::CallExpression(call_expr) => {
+        // `Object.freeze(expr)` returns `Readonly<T>` of its argument
+        let arg = object_freeze_call_arg(call_expr, self.scoping)?;
+        let inner_type = self.expr_to_ts_type(arg, as_const, as_readonly)?;
+        readonly_of(self.allocator, inner_type)
+      }
+      Expression::NewExpression(new_expr) => {
+        // `new SomeClass(...)` of a non-generic class declared in this
+        // module has the class instance type
+        let Expression::Identifier(ident) = &new_expr.callee else {
+          return None;
+        };
+        if new_expr.type_arguments.is_none()
+          && self
+            .non_generic_class_ids
+            .contains(&ident.to_id(self.scoping))
+        {
+          Some(TSType::new_ts_type_reference(
+            SPAN,
+            TSTypeName::new_identifier_reference(
+              SPAN,
+              ident.name,
+              &self.builder(),
+            ),
+            None,
+            &self.builder(),
+          ))
+        } else {
+          None
+        }
       }
       // Since fast check requires explicit type annotations these
       // can be dropped as they are not part of an export declaration
       Expression::ThisExpression(_)
-      | Expression::UnaryExpression(_)
       | Expression::UpdateExpression(_)
       | Expression::BinaryExpression(_)
       | Expression::AssignmentExpression(_)
       | Expression::ConditionalExpression(_)
-      | Expression::CallExpression(_)
-      | Expression::NewExpression(_)
       | Expression::SequenceExpression(_)
-      | Expression::Identifier(_)
       | Expression::TaggedTemplateExpression(_) => None,
       Expression::ClassExpression(class_expr) => {
         // Convert class expression to a type representing the class constructor.
@@ -634,14 +820,26 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                 Box::new_in(
                   TSMethodSignature::new(
                     SPAN,
-                    method.key.clone_in(self.allocator),
+                    method.key.clone_in_with_semantic_ids(self.allocator),
                     method.computed,
                     method.optional,
                     kind,
-                    method.value.type_parameters.clone_in(self.allocator),
-                    method.value.this_param.clone_in(self.allocator),
-                    method.value.params.clone_in(self.allocator),
-                    method.value.return_type.clone_in(self.allocator),
+                    method
+                      .value
+                      .type_parameters
+                      .clone_in_with_semantic_ids(self.allocator),
+                    method
+                      .value
+                      .this_param
+                      .clone_in_with_semantic_ids(self.allocator),
+                    method
+                      .value
+                      .params
+                      .clone_in_with_semantic_ids(self.allocator),
+                    method
+                      .value
+                      .return_type
+                      .clone_in_with_semantic_ids(self.allocator),
                     &AstBuilder::new(self.allocator),
                   ),
                   &self.allocator,
@@ -659,8 +857,10 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
                     prop.computed,
                     prop.optional,
                     prop.readonly,
-                    prop.key.clone_in(self.allocator),
-                    prop.type_annotation.clone_in(self.allocator),
+                    prop.key.clone_in_with_semantic_ids(self.allocator),
+                    prop
+                      .type_annotation
+                      .clone_in_with_semantic_ids(self.allocator),
                     &AstBuilder::new(self.allocator),
                   ),
                   &self.allocator,
@@ -690,7 +890,12 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
           if let ClassElement::MethodDefinition(method) = m
             && method.kind == MethodDefinitionKind::Constructor
           {
-            return Some(method.value.params.clone_in(self.allocator));
+            return Some(
+              method
+                .value
+                .params
+                .clone_in_with_semantic_ids(self.allocator),
+            );
           }
           None
         });
@@ -701,7 +906,9 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
           Box::new_in(
             TSConstructSignatureDeclaration::new(
               SPAN,
-              class_expr.type_parameters.clone_in(self.allocator),
+              class_expr
+                .type_parameters
+                .clone_in_with_semantic_ids(self.allocator),
               ctor_params.unwrap_or_else(|| {
                 Box::new_in(
                   FormalParameters::new(
@@ -757,12 +964,16 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
     computed: bool,
   ) -> (PropertyKey<'a>, bool) {
     match key {
-      PropertyKey::StaticIdentifier(_) | PropertyKey::PrivateIdentifier(_) => {
-        (key.clone_in(self.allocator), computed)
+      PropertyKey::StaticIdentifier(_)
+      | PropertyKey::PrivateIdentifier(_)
+      | PropertyKey::StringLiteral(_)
+      | PropertyKey::NumericLiteral(_)
+      | PropertyKey::BigIntLiteral(_) => {
+        (key.clone_in_with_semantic_ids(self.allocator), computed)
       }
       _ => {
         // Expression variant - keep as computed
-        (key.clone_in(self.allocator), true)
+        (key.clone_in_with_semantic_ids(self.allocator), true)
       }
     }
   }
@@ -831,7 +1042,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
           if let Some(init) = &member.initializer {
             // Support for expressions is limited in enums
             member.initializer = if self.valid_enum_init_expr(init) {
-              Some(init.clone_in(self.allocator))
+              Some(init.clone_in_with_semantic_ids(self.allocator))
             } else {
               None
             };
@@ -975,6 +1186,39 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
     }
   }
 
+  fn ident_to_ts_type(
+    &mut self,
+    ident: &IdentifierReference<'a>,
+    as_const: bool,
+  ) -> Option<TSType<'a>> {
+    let id = ident.to_id(self.scoping);
+    if is_global_ident(ident, self.scoping) {
+      return match ident.name.as_str() {
+        "undefined" if as_const => {
+          Some(TSType::new_ts_undefined_keyword(SPAN, &self.builder()))
+        }
+        "NaN" | "Infinity" => {
+          Some(ts_keyword_type(self.allocator, TSKeywordKind::Number))
+        }
+        _ => None,
+      };
+    }
+    if self.typeof_safe_ids.contains(&id) {
+      Some(TSType::new_ts_type_query(
+        SPAN,
+        TSTypeQueryExprName::new_identifier_reference(
+          SPAN,
+          ident.name,
+          &self.builder(),
+        ),
+        None,
+        &self.builder(),
+      ))
+    } else {
+      None
+    }
+  }
+
   fn infer_expr_fallback_any(
     &mut self,
     expr: &Expression<'a>,
@@ -996,7 +1240,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
   ) -> Box<'a, ClassBody<'a>> {
     let filtered: std::vec::Vec<ClassElement<'a>> = body
       .body
-      .clone_in(self.allocator)
+      .clone_in_with_semantic_ids(self.allocator)
       .into_iter()
       .filter(|member| match member {
         ClassElement::MethodDefinition(method) => {
@@ -1021,7 +1265,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
             Some(ClassElement::MethodDefinition(method))
           } else {
             // Regular method / getter / setter
-            match valid_prop_name(self.allocator, &method.key) {
+            match valid_prop_name(self.allocator, self.scoping, &method.key) {
               Some(new_prop_name) => {
                 method.key = new_prop_name;
               }
@@ -1044,7 +1288,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
             return None;
           }
 
-          match valid_prop_name(self.allocator, &prop.key) {
+          match valid_prop_name(self.allocator, self.scoping, &prop.key) {
             Some(new_prop_name) => {
               prop.key = new_prop_name;
             }
@@ -1140,7 +1384,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         }
 
         Some(BindingPattern::BindingIdentifier(
-          ident.clone_in(self.allocator),
+          ident.clone_in_with_semantic_ids(self.allocator),
         ))
       }
       BindingPattern::ArrayPattern(arr_pat) => {
@@ -1150,7 +1394,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         }
 
         Some(BindingPattern::ArrayPattern(
-          arr_pat.clone_in(self.allocator),
+          arr_pat.clone_in_with_semantic_ids(self.allocator),
         ))
       }
       BindingPattern::ObjectPattern(obj_pat) => {
@@ -1160,7 +1404,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         }
 
         Some(BindingPattern::ObjectPattern(
-          obj_pat.clone_in(self.allocator),
+          obj_pat.clone_in_with_semantic_ids(self.allocator),
         ))
       }
       BindingPattern::AssignmentPattern(_) => None,
@@ -1177,7 +1421,7 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
         items.push(fp);
       }
     }
-    let rest = params.rest.clone_in(self.allocator);
+    let rest = params.rest.clone_in_with_semantic_ids(self.allocator);
     Box::new_in(
       FormalParameters::new(
         params.span,
@@ -1196,15 +1440,18 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
   ) -> Option<FormalParameter<'a>> {
     // In OXC, parameter defaults are in FormalParameter::initializer
     if let Some(init) = &param.initializer {
-      let ta = param.type_annotation.clone_in(self.allocator).or_else(|| {
-        self
-          .expr_to_ts_type(init, false, false)
-          .map(|t| type_ann(self.allocator, t))
-      });
+      let ta = param
+        .type_annotation
+        .clone_in_with_semantic_ids(self.allocator)
+        .or_else(|| {
+          self
+            .expr_to_ts_type(init, false, false)
+            .map(|t| type_ann(self.allocator, t))
+        });
       return Some(FormalParameter::new(
         param.span,
         Vec::new_in(&self.allocator),
-        param.pattern.clone_in(self.allocator),
+        param.pattern.clone_in_with_semantic_ids(self.allocator),
         ta,
         None,
         false,
@@ -1221,9 +1468,11 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
           param.span,
           Vec::new_in(&self.allocator),
           BindingPattern::BindingIdentifier(
-            binding_id.clone_in(self.allocator),
+            binding_id.clone_in_with_semantic_ids(self.allocator),
           ),
-          param.type_annotation.clone_in(self.allocator),
+          param
+            .type_annotation
+            .clone_in_with_semantic_ids(self.allocator),
           None,
           param.optional,
           param.accessibility,
@@ -1232,8 +1481,12 @@ impl<'a, 'b> FastCheckDtsTransformer<'a, 'b> {
           &AstBuilder::new(self.allocator),
         ))
       }
-      BindingPattern::ArrayPattern(_) => Some(param.clone_in(self.allocator)),
-      BindingPattern::ObjectPattern(_) => Some(param.clone_in(self.allocator)),
+      BindingPattern::ArrayPattern(_) => {
+        Some(param.clone_in_with_semantic_ids(self.allocator))
+      }
+      BindingPattern::ObjectPattern(_) => {
+        Some(param.clone_in_with_semantic_ids(self.allocator))
+      }
       BindingPattern::AssignmentPattern(assign_pat) => self
         .expr_to_ts_type(&assign_pat.right, false, false)
         .map(|ts_type| {
@@ -1279,46 +1532,280 @@ fn is_ts_const_type(ty: &TSType) -> bool {
   false
 }
 
+#[derive(Default)]
+struct PrescannedModuleIds {
+  /// Bindings whose type can be soundly referenced via `typeof` in the
+  /// emitted declaration file: function and class declarations don't get
+  /// widened by TypeScript's inference, and consts with an explicit type
+  /// annotation or a function initializer have a known non-widening
+  /// declared type.
+  typeof_safe: HashSet<Id>,
+  /// Class declarations without type parameters.
+  non_generic_classes: HashSet<Id>,
+  /// Bindings with an array or tuple type, per their type annotation or an
+  /// array literal initializer.
+  array_typed: HashSet<Id>,
+}
+
+/// The equivalent of `Readonly<T>`, expressed without referencing the
+/// global `Readonly` utility type since that identifier could be shadowed
+/// by a module-local type declaration. Types that can't be represented
+/// structurally return `None`.
+fn readonly_of<'a>(
+  allocator: &'a Allocator,
+  ts_type: TSType<'a>,
+) -> Option<TSType<'a>> {
+  match ts_type {
+    TSType::TSTypeLiteral(mut type_lit)
+      if type_lit.members.iter().all(|member| {
+        matches!(
+          member,
+          TSSignature::TSPropertySignature(_)
+            | TSSignature::TSIndexSignature(_)
+        )
+      }) =>
+    {
+      for member in type_lit.members.iter_mut() {
+        match member {
+          TSSignature::TSPropertySignature(prop) => prop.readonly = true,
+          TSSignature::TSIndexSignature(index) => index.readonly = true,
+          _ => unreachable!(),
+        }
+      }
+      Some(TSType::TSTypeLiteral(type_lit))
+    }
+    TSType::TSArrayType(_) | TSType::TSTupleType(_) => {
+      Some(ts_readonly(allocator, ts_type))
+    }
+    TSType::TSTypeOperatorType(op)
+      if op.operator == TSTypeOperatorOperator::Readonly =>
+    {
+      Some(TSType::TSTypeOperatorType(op))
+    }
+    // `Object.freeze` returns functions unchanged
+    TSType::TSFunctionType(_) => Some(ts_type),
+    _ => None,
+  }
+}
+
+fn is_array_type(ty: &TSType) -> bool {
+  match ty {
+    TSType::TSArrayType(_) | TSType::TSTupleType(_) => true,
+    TSType::TSTypeOperatorType(op)
+      if op.operator == TSTypeOperatorOperator::Readonly =>
+    {
+      is_array_type(&op.type_annotation)
+    }
+    TSType::TSTypeReference(type_ref) => matches!(
+      &type_ref.type_name,
+      TSTypeName::IdentifierReference(ident)
+        if ident.name == "Array" || ident.name == "ReadonlyArray"
+    ),
+    _ => false,
+  }
+}
+
+fn is_array_lit_init(expr: &Expression) -> bool {
+  match expr {
+    Expression::ArrayExpression(_) => true,
+    Expression::ParenthesizedExpression(e) => is_array_lit_init(&e.expression),
+    Expression::TSSatisfiesExpression(e) => is_array_lit_init(&e.expression),
+    Expression::TSAsExpression(e) => {
+      if is_ts_const_type(&e.type_annotation) {
+        is_array_lit_init(&e.expression)
+      } else {
+        is_array_type(&e.type_annotation)
+      }
+    }
+    _ => false,
+  }
+}
+
+fn prescan_module_ids(
+  program: &Program,
+  scoping: Option<&Scoping>,
+) -> PrescannedModuleIds {
+  fn add_class(
+    ids: &mut PrescannedModuleIds,
+    scoping: Option<&Scoping>,
+    ident: &BindingIdentifier,
+    class: &Class,
+  ) {
+    ids.typeof_safe.insert(ident.to_id(scoping));
+    if class.type_parameters.is_none() {
+      ids.non_generic_classes.insert(ident.to_id(scoping));
+    }
+  }
+
+  fn add_decl(
+    ids: &mut PrescannedModuleIds,
+    scoping: Option<&Scoping>,
+    decl: &Declaration,
+  ) {
+    match decl {
+      Declaration::FunctionDeclaration(n) => {
+        if let Some(ident) = &n.id {
+          ids.typeof_safe.insert(ident.to_id(scoping));
+        }
+      }
+      Declaration::ClassDeclaration(n) => {
+        if let Some(ident) = &n.id {
+          add_class(ids, scoping, ident, n);
+        }
+      }
+      Declaration::VariableDeclaration(n)
+        if n.kind == VariableDeclarationKind::Const =>
+      {
+        for declarator in &n.declarations {
+          if let BindingPattern::BindingIdentifier(ident) = &declarator.id {
+            let is_typed = declarator.type_annotation.is_some();
+            let has_fn_init = matches!(
+              declarator.init,
+              Some(
+                Expression::FunctionExpression(_)
+                  | Expression::ArrowFunctionExpression(_)
+              )
+            );
+            if is_typed || has_fn_init {
+              ids.typeof_safe.insert(ident.to_id(scoping));
+            }
+            let is_array_typed = match &declarator.type_annotation {
+              Some(type_ann) => is_array_type(&type_ann.type_annotation),
+              None => declarator.init.as_ref().is_some_and(is_array_lit_init),
+            };
+            if is_array_typed {
+              ids.array_typed.insert(ident.to_id(scoping));
+            }
+          }
+        }
+      }
+      _ => {}
+    }
+  }
+
+  let mut ids = PrescannedModuleIds::default();
+  for stmt in &program.body {
+    match stmt {
+      Statement::ExportDeclaration(n) => {
+        add_decl(&mut ids, scoping, &n.declaration)
+      }
+      Statement::ExportDefaultDeclaration(n) => match &n.declaration {
+        ExportDefaultDeclarationKind::ClassDeclaration(class) => {
+          if let Some(ident) = &class.id {
+            add_class(&mut ids, scoping, ident, class);
+          }
+        }
+        ExportDefaultDeclarationKind::FunctionDeclaration(func) => {
+          if let Some(ident) = &func.id {
+            ids.typeof_safe.insert(ident.to_id(scoping));
+          }
+        }
+        _ => {}
+      },
+      stmt => {
+        if let Some(decl) = stmt.as_declaration() {
+          add_decl(&mut ids, scoping, decl);
+        }
+      }
+    }
+  }
+  ids
+}
+
+/// Whether the expression is a reference to a well-known symbol on the
+/// global `Symbol` object (e.g. `Symbol.iterator` or `Symbol.dispose`).
+fn is_well_known_symbol_expr(
+  expr: &Expression,
+  scoping: Option<&Scoping>,
+) -> bool {
+  const WELL_KNOWN_SYMBOL_NAMES: [&str; 16] = [
+    "asyncDispose",
+    "asyncIterator",
+    "dispose",
+    "hasInstance",
+    "isConcatSpreadable",
+    "iterator",
+    "match",
+    "matchAll",
+    "metadata",
+    "replace",
+    "search",
+    "species",
+    "split",
+    "toPrimitive",
+    "toStringTag",
+    "unscopables",
+  ];
+
+  let Expression::StaticMemberExpression(member_expr) = expr else {
+    return false;
+  };
+  let Expression::Identifier(obj_ident) = &member_expr.object else {
+    return false;
+  };
+  if obj_ident.name != "Symbol" || !is_global_ident(obj_ident, scoping) {
+    return false;
+  }
+  WELL_KNOWN_SYMBOL_NAMES.contains(&member_expr.property.name.as_str())
+}
+
 fn valid_prop_name<'a>(
   allocator: &'a Allocator,
+  scoping: Option<&Scoping>,
   prop_key: &PropertyKey<'a>,
 ) -> Option<PropertyKey<'a>> {
   fn prop_name_from_property_key<'a>(
     allocator: &'a Allocator,
+    scoping: Option<&Scoping>,
     key: &PropertyKey<'a>,
   ) -> Option<PropertyKey<'a>> {
     match key {
-      PropertyKey::StaticIdentifier(_) => Some(key.clone_in(allocator)),
-      PropertyKey::PrivateIdentifier(_) => Some(key.clone_in(allocator)),
+      PropertyKey::StaticIdentifier(_) => {
+        Some(key.clone_in_with_semantic_ids(allocator))
+      }
+      PropertyKey::PrivateIdentifier(_) => {
+        Some(key.clone_in_with_semantic_ids(allocator))
+      }
       // Expression variants
       PropertyKey::StringLiteral(_)
       | PropertyKey::NumericLiteral(_)
-      | PropertyKey::BigIntLiteral(_) => Some(key.clone_in(allocator)),
+      | PropertyKey::BigIntLiteral(_) => {
+        Some(key.clone_in_with_semantic_ids(allocator))
+      }
       PropertyKey::TemplateLiteral(tpl) => {
         if tpl.quasis.is_empty() && tpl.expressions.len() == 1 {
-          prop_name_from_expr(allocator, &tpl.expressions[0])
+          prop_name_from_expr(allocator, scoping, &tpl.expressions[0])
         } else {
           None
         }
       }
       PropertyKey::ParenthesizedExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       PropertyKey::TSTypeAssertion(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       PropertyKey::TSNonNullExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       PropertyKey::TSAsExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       PropertyKey::TSSatisfiesExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       PropertyKey::Identifier(_ident) => {
         // Computed identifier - keep as computed property key
-        Some(key.clone_in(allocator))
+        Some(key.clone_in_with_semantic_ids(allocator))
+      }
+      PropertyKey::StaticMemberExpression(_) => {
+        // `[Symbol.iterator]` and friends
+        let expr = key.as_expression()?;
+        if is_well_known_symbol_expr(expr, scoping) {
+          Some(key.clone_in_with_semantic_ids(allocator))
+        } else {
+          None
+        }
       }
       _ => None,
     }
@@ -1326,39 +1813,40 @@ fn valid_prop_name<'a>(
 
   fn prop_name_from_expr<'a>(
     allocator: &'a Allocator,
+    scoping: Option<&Scoping>,
     expr: &Expression<'a>,
   ) -> Option<PropertyKey<'a>> {
     match expr {
-      Expression::StringLiteral(s) => {
-        Some(PropertyKey::StringLiteral(s.clone_in(allocator)))
-      }
-      Expression::NumericLiteral(n) => {
-        Some(PropertyKey::NumericLiteral(n.clone_in(allocator)))
-      }
-      Expression::BigIntLiteral(b) => {
-        Some(PropertyKey::BigIntLiteral(b.clone_in(allocator)))
-      }
+      Expression::StringLiteral(s) => Some(PropertyKey::StringLiteral(
+        s.clone_in_with_semantic_ids(allocator),
+      )),
+      Expression::NumericLiteral(n) => Some(PropertyKey::NumericLiteral(
+        n.clone_in_with_semantic_ids(allocator),
+      )),
+      Expression::BigIntLiteral(b) => Some(PropertyKey::BigIntLiteral(
+        b.clone_in_with_semantic_ids(allocator),
+      )),
       Expression::TemplateLiteral(e) => {
         if e.quasis.is_empty() && e.expressions.len() == 1 {
-          prop_name_from_expr(allocator, &e.expressions[0])
+          prop_name_from_expr(allocator, scoping, &e.expressions[0])
         } else {
           None
         }
       }
       Expression::ParenthesizedExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       Expression::TSTypeAssertion(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       Expression::TSNonNullExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       Expression::TSAsExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       Expression::TSSatisfiesExpression(e) => {
-        prop_name_from_expr(allocator, &e.expression)
+        prop_name_from_expr(allocator, scoping, &e.expression)
       }
       Expression::Identifier(id) => {
         // Computed identifier reference
@@ -1368,11 +1856,20 @@ fn valid_prop_name<'a>(
           &AstBuilder::new(allocator),
         ))
       }
+      Expression::StaticMemberExpression(_) => {
+        if is_well_known_symbol_expr(expr, scoping) {
+          Some(PropertyKey::from(
+            expr.clone_in_with_semantic_ids(allocator),
+          ))
+        } else {
+          None
+        }
+      }
       _ => None,
     }
   }
 
-  prop_name_from_property_key(allocator, prop_key)
+  prop_name_from_property_key(allocator, scoping, prop_key)
 }
 
 #[cfg(test)]
@@ -1443,11 +1940,13 @@ mod tests {
           specifier: &specifier,
           source: source.into(),
           media_type: deno_ast::MediaType::TypeScript,
-          scope_analysis: false,
+          scope_analysis: true,
         },
       )
       .unwrap();
-    let program = parsed_source.program().clone_in(&allocator);
+    let program = parsed_source
+      .program()
+      .clone_in_with_semantic_ids(&allocator);
     let nv = PackageNv::from_str("package@1.0.0").unwrap();
     let public_ranges = find_public_ranges(
       None,
@@ -1473,6 +1972,7 @@ mod tests {
       parsed_source.text_info_lazy(),
       &public_ranges,
       &specifier,
+      parsed_source.scoping(),
     );
     let program = transformer.transform(program);
 
@@ -1778,6 +2278,198 @@ export function foo(a: any): number {
     transform_dts_test(
       r#"export const foo = { bar } as const;"#,
       r#"export declare const foo: {};"#,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn dts_object_prop_ident_reference() {
+    // https://github.com/jsr-io/jsr/issues/615
+    transform_dts_test(
+      r#"export function fAdd(a: number, b: number): number {
+  return a + b;
+}
+export class Foo {}
+const arrow = (a: string): string => a;
+const typed: number = 1;
+export const obj = {
+  add: fAdd,
+  arrow,
+  klass: Foo,
+  typed,
+};"#,
+      r#"export declare function fAdd(a: number, b: number): number;
+export declare class Foo {}
+declare const arrow: (a: string) => string;
+declare const typed: number;
+export declare const obj: {
+  readonly add: typeof fAdd;
+  readonly arrow: typeof arrow;
+  readonly klass: typeof Foo;
+  readonly typed: typeof typed;
+};"#,
+    )
+    .await;
+
+    // a `let` variable may be widened by TypeScript's inference, so
+    // referencing it via `typeof` is not safe and falls back to `any`
+    transform_dts_test(
+      r#"let counter = 0;
+export const obj = { counter };"#,
+      r#"declare let counter: number;
+export declare const obj: {};"#,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn dts_ident_globals() {
+    transform_dts_test(
+      r#"export const foo = { u: undefined, n: NaN, i: Infinity } as const;"#,
+      r#"export declare const foo: {
+  readonly u: undefined;
+  readonly n: number;
+  readonly i: number;
+};"#,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn dts_class_wellknown_symbol_members() {
+    // https://github.com/jsr-io/jsr/issues/886
+    // https://github.com/jsr-io/jsr/issues/1179
+    transform_dts_test(
+      r#"export class Foo<T> implements Iterable<T> {
+  [Symbol.iterator](): Iterator<T> {
+    return null!;
+  }
+  [Symbol.dispose](): void {}
+  readonly [Symbol.toStringTag]: string = "Foo";
+}"#,
+      r#"export declare class Foo<T> implements Iterable<T> {
+  [Symbol.iterator](): Iterator<T>;
+  [Symbol.dispose](): void;
+  readonly [Symbol.toStringTag]: string;
+}"#,
+    )
+    .await;
+
+    // a local binding named `Symbol` is not the global `Symbol` object
+    transform_dts_test(
+      r#"const Symbol = { iterator: "iter" } as const;
+export class Foo {
+  [Symbol.iterator](): void {}
+}"#,
+      r#"declare const Symbol: {
+  readonly iterator: "iter";
+};
+export declare class Foo {}"#,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn dts_as_const_spread() {
+    // https://github.com/jsr-io/jsr/issues/1258
+    transform_dts_test(
+      r#"export const FIRST = ["a", "b"] as const;
+export const ALL = [...FIRST, "c", "d"] as const;"#,
+      r#"export declare const FIRST: readonly ["a", "b"];
+export declare const ALL: readonly [...typeof FIRST, "c", "d"];"#,
+    )
+    .await;
+
+    transform_dts_test(
+      r#"export const flat = [...[1, 2], ...["test"]] as const;"#,
+      "export declare const flat: readonly [...[1, 2], ...[\"test\"]];",
+    )
+    .await;
+
+    // a spread of an uninferable expression falls back to `any` for the
+    // whole array instead of emitting a tuple with missing elements
+    transform_dts_test(
+      r#"export const nope = [...foo(), "a"] as const;"#,
+      "export declare const nope: any;",
+    )
+    .await;
+
+    // a spread of a binding that is not array-typed cannot become a tuple
+    // rest element (`...typeof source` of a string is invalid TypeScript)
+    transform_dts_test(
+      r#"const source: string = "abc";
+export const bad = [...source, "a"] as const;"#,
+      r#"declare const source: string;
+export declare const bad: any;"#,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn dts_negative_number_literals() {
+    transform_dts_test(
+      r#"export const nums = [1, -2, 3.5] as const;"#,
+      "export declare const nums: readonly [1, -2, 3.5];",
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn dts_new_expr() {
+    transform_dts_test(
+      r#"export class Dimensions {}
+export const a = { d: new Dimensions() };"#,
+      r#"export declare class Dimensions {}
+export declare const a: {
+  readonly d: Dimensions;
+};"#,
+    )
+    .await;
+
+    // generic classes are not inferable from a `new` expression
+    transform_dts_test(
+      r#"export class Box<T> {}
+export const a = new Box("test");"#,
+      r#"export declare class Box<T> {}
+export declare const a: any;"#,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn dts_object_freeze() {
+    // https://github.com/jsr-io/jsr/issues/155
+    transform_dts_test(
+      r#"export const props = Object.freeze({ a: 1, b: "test" });"#,
+      r#"export declare const props: {
+  readonly a: number;
+  readonly b: string;
+};"#,
+    )
+    .await;
+
+    transform_dts_test(
+      r#"export const list = Object.freeze([1, 2]);"#,
+      "export declare const list: readonly [number, number];",
+    )
+    .await;
+
+    // the emitted type must not reference the global `Readonly` utility
+    // type, which can be shadowed by a module-local declaration
+    transform_dts_test(
+      r#"export type Readonly<T> = string;
+export const frozen = Object.freeze({ value: 1 });"#,
+      r#"export type Readonly<T> = string;
+export declare const frozen: {
+  readonly value: number;
+};"#,
+    )
+    .await;
+
+    // other calls are still not inferable
+    transform_dts_test(
+      r#"export const foo = Object.entries({ a: 1 });"#,
+      "export declare const foo: any;",
     )
     .await;
   }

@@ -32,7 +32,7 @@ export const asIs2 = {
   e: 1 * 2,
   [1]: 4,
   f: 1 ? true : false,
-  g: 1++,
+  g: asIs1.length++,
   h: [...[1, 2], ...["test"]],
 };
 export const func1 = function (): string { return "test" };
@@ -95,7 +95,7 @@ import 'jsr:@scope/a'
     },
     {
       "kind": "esm",
-      "size": 1434,
+      "size": 1445,
       "mediaType": "TypeScript",
       "specifier": "https://jsr.io/@scope/a/1.0.0/mod.ts"
     }
@@ -112,8 +112,7 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   {}
   const public1: Public1 = {} as never;
   export { public1 };
-  class Public1 {
-  }
+  class Public1 {}
   const ERROR_STATUS_MAP = {
     "BadRequest": 400,
     "Unauthorized": 401,
@@ -138,27 +137,19 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
     e: 1 * 2,
     [1]: 4,
     f: 1 ? true : false,
-    g: 1++,
-    h: [
-      ...[
-        1,
-        2
-      ],
-      ...[
-        "test"
-      ]
-    ]
+    g: asIs1.length++,
+    h: [...[1, 2], ...["test"]]
   };
   export const func1 = function(): string {
     return {} as never;
   };
-  export const func2 = (): string =>({} as never);
-  export const func3 = (): string =>({} as never);
-  export const func4 = ()=>"test" as const;
-  export const func5 = (): Promise<string> =>({} as never);
-  export const func6 = (): Promise<1> =>({} as never);
-  export const func7 = (): Promise<1> =>({} as never);
-  export const func8 = async ()=>"test" as const;
+  export const func2 = (): string => ({}) as never;
+  export const func3 = (): string => ({}) as never;
+  export const func4 = () => "test" as const;
+  export const func5 = (): Promise<string> => ({}) as never;
+  export const func6 = (): Promise<1> => ({}) as never;
+  export const func7 = (): Promise<1> => ({}) as never;
+  export const func8 = async () => "test" as const;
   export const inferred1: 1 = {} as never;
   export const inferred2: string = {} as never;
   export const inferred3: true = {} as never;
@@ -167,15 +158,14 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   export const inferred6: boolean = {} as never;
   export const inferred7: 1 | 2 | 3 & 4 = {} as never;
   export const inferred8: ["test", 1] = {} as never;
-  export const inferred9: [...string] = {} as never;
+  export const inferred9 = ({} as never) as [...string];
   export const inferred10: (1 | 2n)[] = {} as never;
   export const inferred11: (keyof string)[] = {} as never;
   export const inferred12: 1 = {} as never;
   --- DTS ---
   declare const public1: Public1;
   export { public1 };
-  declare class Public1 {
-  }
+  declare class Public1 {}
   declare const ERROR_STATUS_MAP: {
     readonly "BadRequest": 400;
     readonly "Unauthorized": 401;

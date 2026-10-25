@@ -76,8 +76,8 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   }
   class Public1 {}
   --- DTS ---
-  export declare namespace Test {}
-  export declare namespace Test {
+  export declare namespace Test.Test {}
+  export declare namespace Test.Test {
     export class MyClass2 extends Public1 {}
   }
   declare class Public1 {}

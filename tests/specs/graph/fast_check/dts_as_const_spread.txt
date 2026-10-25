@@ -68,10 +68,7 @@ import 'jsr:@scope/a'
 
 Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   {}
-  export const DEFAULT_UPDATE_TYPES = [
-    "message",
-    "edited_message"
-  ] as const;
+  export const DEFAULT_UPDATE_TYPES = ["message", "edited_message"] as const;
   export const ALL_UPDATE_TYPES = [
     ...DEFAULT_UPDATE_TYPES,
     "chat_member",

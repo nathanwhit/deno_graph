@@ -70,13 +70,13 @@ import 'jsr:@scope/a'
 
 Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   {}
-  export const prefixes = Object.freeze({
-    k: 1e+3,
-    M: 1e+6
-  } as const satisfies Record<string, number>);
+  export const prefixes = Object.freeze(({
+    k: 1e3,
+    M: 1e6
+  } as const) satisfies Record<string, number>);
   export const prefixes2 = Object.freeze({
-    k: 1e+3,
-    M: 1e+6
+    k: 1e3,
+    M: 1e6
   } as const) satisfies Record<string, number>;
   --- DTS ---
   export declare const prefixes: {

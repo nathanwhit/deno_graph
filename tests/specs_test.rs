@@ -600,7 +600,7 @@ impl SpecFile {
         text
       }
       SpecFileContent::Source(source) => {
-        format!("# {} <= {}\n", &self.specifier, &source.specified_path)
+        format!("# {} <= {}\n", self.specifier, source.specified_path)
       }
     }
   }
@@ -677,7 +677,7 @@ pub fn parse_spec(path: &Path, text: String) -> Spec {
           if !line.is_empty() {
             panic!(
               "Error parsing spec: Unexpected inline input for specifier \"{}\", which was set to be read from an external file.",
-              &current_file.specifier
+              current_file.specifier
             );
           }
         }

@@ -18,6 +18,12 @@ pub type Id = (String, usize);
 /// Discriminator value used when an identifier has no resolved symbol.
 const UNRESOLVED_CTXT: usize = 0;
 
+/// Whether the id refers to an unresolved binding (a global or an identifier
+/// that was created after semantic analysis).
+pub fn is_unresolved_id(id: &Id) -> bool {
+  id.1 == UNRESOLVED_CTXT
+}
+
 fn symbol_ctxt(symbol_id: deno_ast::oxc::semantic::SymbolId) -> usize {
   symbol_id.index() + 1
 }

@@ -33,7 +33,9 @@ use crate::WorkspaceMember;
 use crate::analysis::ModuleInfo;
 use crate::ast::ParserModuleAnalyzer;
 use crate::symbols::EsModuleInfo;
+use crate::symbols::ExportDeclRef;
 use crate::symbols::Symbol;
+use crate::symbols::SymbolNodeRef;
 
 use super::FastCheckDiagnostic;
 use super::FastCheckDiagnosticRange;
@@ -44,6 +46,8 @@ use super::helpers::analyze_return_stmts_in_function_body;
 use super::helpers::any_type_ann;
 use super::helpers::is_void_type;
 use super::helpers::maybe_lit_to_ts_type;
+use super::helpers::object_freeze_call_arg;
+use super::helpers::tpl_to_ts_type;
 use super::helpers::ts_keyword_type;
 use super::helpers::type_ann;
 use super::range_finder::ModulePublicRanges;
@@ -81,7 +85,7 @@ impl<'a> CommentsMut<'a> {
         CommentKind::HtmlOpen | CommentKind::HtmlClose => false,
       };
       if keep {
-        filtered.push(c.clone_in(allocator));
+        filtered.push(c.clone_in_with_semantic_ids(allocator));
       }
     }
     Self { comments: filtered }
@@ -249,6 +253,7 @@ pub fn transform(
       text_info,
       public_ranges,
       specifier,
+      es_module_info.scoping(),
     );
 
     let dts_program = dts_transformer.transform(program);
@@ -1070,7 +1075,7 @@ impl<'a> FastCheckTransformer<'a> {
               SPAN,
               PropertyDefinitionType::PropertyDefinition,
               OxcVec::new_in(&self.allocator),
-              n.key.clone_in(self.allocator),
+              n.key.clone_in_with_semantic_ids(self.allocator),
               Some(any_type_ann(self.allocator)),
               None,
               n.computed,
@@ -1170,7 +1175,7 @@ impl<'a> FastCheckTransformer<'a> {
           any_type_ann(self.allocator)
         } else {
           match n.type_annotation.as_ref() {
-            Some(ta) => ta.clone_in(self.allocator),
+            Some(ta) => ta.clone_in_with_semantic_ids(self.allocator),
             None => {
               let inferred_type = n.value.as_ref().and_then(|e| {
                 self.maybe_infer_type_from_expr(e, DeclMutabilityKind::Mutable)
@@ -1196,7 +1201,7 @@ impl<'a> FastCheckTransformer<'a> {
             n.span,
             PropertyDefinitionType::PropertyDefinition,
             OxcVec::new_in(&self.allocator),
-            n.key.clone_in(self.allocator),
+            n.key.clone_in_with_semantic_ids(self.allocator),
             Some(type_annotation),
             None,
             n.computed,
@@ -1312,7 +1317,9 @@ impl<'a> FastCheckTransformer<'a> {
             } else {
               match &param.pattern {
                 BindingPattern::BindingIdentifier(_) => {
-                  let explicit = param.type_annotation.clone_in(self.allocator);
+                  let explicit = param
+                    .type_annotation
+                    .clone_in_with_semantic_ids(self.allocator);
                   // A parameter property with a default (`public r = 0`) stores
                   // the default in `param.initializer`. Infer the field type
                   // from it so the hoisted property isn't implicitly `any`.
@@ -1331,7 +1338,9 @@ impl<'a> FastCheckTransformer<'a> {
                   })
                 }
                 BindingPattern::AssignmentPattern(assign) => {
-                  let explicit = param.type_annotation.clone_in(self.allocator);
+                  let explicit = param
+                    .type_annotation
+                    .clone_in_with_semantic_ids(self.allocator);
                   explicit.or_else(|| {
                     self
                       .maybe_infer_type_from_expr(
@@ -1783,7 +1792,9 @@ impl<'a> FastCheckTransformer<'a> {
               Some(t) => {
                 let ta = type_ann(self.allocator, t);
                 if !is_optional {
-                  let inner_type = ta.type_annotation.clone_in(self.allocator);
+                  let inner_type = ta
+                    .type_annotation
+                    .clone_in_with_semantic_ids(self.allocator);
                   let union_type = TSType::TSUnionType(OxcBox::new_in(
                     TSUnionType::new(
                       SPAN,
@@ -1843,7 +1854,9 @@ impl<'a> FastCheckTransformer<'a> {
           if is_optional {
             param.optional = true;
           } else if let Some(ta) = param.type_annotation.take() {
-            let inner_type = ta.type_annotation.clone_in(self.allocator);
+            let inner_type = ta
+              .type_annotation
+              .clone_in_with_semantic_ids(self.allocator);
             let union_type = TSType::TSUnionType(OxcBox::new_in(
               TSUnionType::new(
                 SPAN,
@@ -1965,7 +1978,9 @@ impl<'a> FastCheckTransformer<'a> {
             Some(t) => {
               let ta = type_ann(self.allocator, t);
               if !is_optional {
-                let inner_type = ta.type_annotation.clone_in(self.allocator);
+                let inner_type = ta
+                  .type_annotation
+                  .clone_in_with_semantic_ids(self.allocator);
                 let union_type = TSType::TSUnionType(OxcBox::new_in(
                   TSUnionType::new(
                     SPAN,
@@ -1996,7 +2011,8 @@ impl<'a> FastCheckTransformer<'a> {
               // Convert to plain ident pattern
               if let BindingPattern::AssignmentPattern(assign) = &param.pattern
               {
-                let new_left = assign.left.clone_in(self.allocator);
+                let new_left =
+                  assign.left.clone_in_with_semantic_ids(self.allocator);
                 param.pattern = new_left;
               }
             }
@@ -2034,7 +2050,9 @@ impl<'a> FastCheckTransformer<'a> {
         } else {
           if !is_optional {
             if let Some(ta) = param.type_annotation.take() {
-              let inner_type = ta.type_annotation.clone_in(self.allocator);
+              let inner_type = ta
+                .type_annotation
+                .clone_in_with_semantic_ids(self.allocator);
               let union_type = TSType::TSUnionType(OxcBox::new_in(
                 TSUnionType::new(
                   SPAN,
@@ -2063,7 +2081,8 @@ impl<'a> FastCheckTransformer<'a> {
             param.optional = true;
           }
           if let BindingPattern::AssignmentPattern(assign) = &param.pattern {
-            let new_left = assign.left.clone_in(self.allocator);
+            let new_left =
+              assign.left.clone_in_with_semantic_ids(self.allocator);
             param.pattern = new_left;
           }
         }
@@ -2291,7 +2310,7 @@ impl<'a> FastCheckTransformer<'a> {
           &self.allocator,
         )),
         None,
-        Some(n.right.clone_in(self.allocator)),
+        Some(n.right.clone_in_with_semantic_ids(self.allocator)),
         false,
         &AstBuilder::new(self.allocator),
       ));
@@ -2367,6 +2386,8 @@ impl<'a> FastCheckTransformer<'a> {
     expr: &mut Expression<'a>,
     parent_id_span: Option<Span>,
   ) -> Result<bool, Vec<FastCheckDiagnostic>> {
+    let es_module_info = self.es_module_info;
+    let scoping = es_module_info.scoping();
     let mut recurse = |expr: &mut Expression<'a>| {
       self.maybe_transform_expr_if_leavable(expr, None)
     };
@@ -2462,7 +2483,36 @@ impl<'a> FastCheckTransformer<'a> {
       }
       Expression::PrivateFieldExpression(_) => false,
       Expression::Identifier(_) => true,
-      Expression::CallExpression(_) | Expression::NewExpression(_) | Expression::SequenceExpression(_) => false,
+      Expression::CallExpression(n) => {
+        // `Object.freeze(...)` has a well-known return type based on its
+        // argument, so it can be left as-is when its argument can be
+        if object_freeze_call_arg(n, scoping).is_some() {
+          let arg = n.arguments[0].as_expression_mut().unwrap();
+          recurse(arg)?
+        } else {
+          false
+        }
+      }
+      Expression::NewExpression(n) => {
+        // the type of `new SomeClass(...)` on a non-generic class declared
+        // in this module is simply the class instance type
+        if is_new_expr_of_non_generic_class(es_module_info, n) {
+          let mut is_leavable = true;
+          for arg in n.arguments.iter_mut() {
+            is_leavable = match arg.as_expression_mut() {
+              Some(arg) => recurse(arg)?,
+              None => false, // spread
+            };
+            if !is_leavable {
+              break;
+            }
+          }
+          is_leavable
+        } else {
+          false
+        }
+      }
+      Expression::SequenceExpression(_) => false,
       Expression::StringLiteral(_)
       | Expression::BooleanLiteral(_)
       | Expression::NullLiteral(_)
@@ -2573,9 +2623,8 @@ impl<'a> FastCheckTransformer<'a> {
           None
         }
       }
-      Expression::TemplateLiteral(_) => {
-        // Untagged template literals always produce strings.
-        Some(ts_keyword_type(self.allocator, TSKeywordKind::String))
+      Expression::TemplateLiteral(tpl) => {
+        Some(tpl_to_ts_type(self.allocator, tpl, decl_kind))
       }
       Expression::TSSatisfiesExpression(n) => {
         self.maybe_infer_type_from_expr(&n.expression, decl_kind)
@@ -2792,8 +2841,10 @@ fn infer_simple_type_from_type<'a>(
     | TSType::TSUndefinedKeyword(_)
     | TSType::TSUnknownKeyword(_)
     | TSType::TSVoidKeyword(_)
-    | TSType::TSIntrinsicKeyword(_) => Some(t.clone_in(allocator)),
-    TSType::TSThisType(_) => Some(t.clone_in(allocator)),
+    | TSType::TSIntrinsicKeyword(_) => {
+      Some(t.clone_in_with_semantic_ids(allocator))
+    }
+    TSType::TSThisType(_) => Some(t.clone_in_with_semantic_ids(allocator)),
     TSType::TSFunctionType(_) | TSType::TSConstructorType(_) => None,
     TSType::TSTypeReference(type_ref) => {
       let type_arguments = match &type_ref.type_arguments {
@@ -2817,7 +2868,7 @@ fn infer_simple_type_from_type<'a>(
       Some(TSType::TSTypeReference(OxcBox::new_in(
         TSTypeReference::new(
           type_ref.span,
-          type_ref.type_name.clone_in(allocator),
+          type_ref.type_name.clone_in_with_semantic_ids(allocator),
           type_arguments,
           &AstBuilder::new(allocator),
         ),
@@ -2825,9 +2876,9 @@ fn infer_simple_type_from_type<'a>(
       )))
     }
     TSType::TSTypeQuery(_) => None,
-    TSType::TSTypeLiteral(t) => {
-      Some(TSType::TSTypeLiteral(t.clone_in(allocator)))
-    }
+    TSType::TSTypeLiteral(t) => Some(TSType::TSTypeLiteral(
+      t.clone_in_with_semantic_ids(allocator),
+    )),
     TSType::TSTupleType(t) => {
       let mut elems =
         OxcVec::with_capacity_in(t.element_types.len(), &allocator);
@@ -2901,9 +2952,9 @@ fn infer_simple_type_from_type<'a>(
       TSLiteral::NumericLiteral(_)
       | TSLiteral::StringLiteral(_)
       | TSLiteral::BooleanLiteral(_)
-      | TSLiteral::BigIntLiteral(_) => {
-        Some(TSType::TSLiteralType(t.clone_in(allocator)))
-      }
+      | TSLiteral::BigIntLiteral(_) => Some(TSType::TSLiteralType(
+        t.clone_in_with_semantic_ids(allocator),
+      )),
       TSLiteral::TemplateLiteral(_) | TSLiteral::UnaryExpression(_) => None,
     },
     TSType::TSTypePredicate(_) | TSType::TSImportType(_) => None,
@@ -2914,7 +2965,7 @@ fn infer_simple_type_from_type<'a>(
         TSType::TSNamedTupleMember(OxcBox::new_in(
           TSNamedTupleMember::new(
             t.span,
-            t.label.clone_in(allocator),
+            t.label.clone_in_with_semantic_ids(allocator),
             super::helpers::ts_tuple_element(inferred),
             t.optional,
             &AstBuilder::new(allocator),
@@ -3212,6 +3263,33 @@ fn collect_ident_refs_in_expr<'a>(
 
 // ImportDeclarationSpecifier, ExportSpecifier, ClassElement all implement
 // GetSpan from the oxc_ast crate (imported via deno_ast::oxc::span::GetSpan).
+
+/// Whether the `new` expression instantiates a class declared in this
+/// module that has no type parameters, in which case its type is simply
+/// the class instance type.
+fn is_new_expr_of_non_generic_class(
+  es_module_info: &EsModuleInfo,
+  new_expr: &NewExpression,
+) -> bool {
+  if new_expr.type_arguments.is_some() {
+    return false;
+  }
+  let Expression::Identifier(ident) = &new_expr.callee else {
+    return false;
+  };
+  let Some(symbol) =
+    es_module_info.symbol_from_swc(&ident.to_id(es_module_info.scoping()))
+  else {
+    return false;
+  };
+  symbol.decls().iter().any(|decl| match decl.maybe_node() {
+    Some(SymbolNodeRef::ClassDecl(n)) => n.type_parameters.is_none(),
+    Some(SymbolNodeRef::ExportDecl(_, ExportDeclRef::Class(n))) => {
+      n.type_parameters.is_none()
+    }
+    _ => false,
+  })
+}
 
 fn get_innermost_module_block<'a, 'b>(
   body: &'b mut TSNamespaceDeclarationBody<'a>,

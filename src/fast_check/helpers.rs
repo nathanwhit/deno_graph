@@ -7,8 +7,12 @@ use deno_ast::oxc::allocator::Box;
 use deno_ast::oxc::allocator::CloneIn;
 use deno_ast::oxc::ast::ast::*;
 use deno_ast::oxc::ast::builder::AstBuilder;
+use deno_ast::oxc::semantic::Scoping;
 use deno_ast::oxc::span::Ident;
 use deno_ast::oxc::span::SPAN;
+
+use crate::symbols::helpers::ToId;
+use crate::symbols::helpers::is_unresolved_id;
 
 pub fn new_ident<'a>(
   allocator: &'a Allocator,
@@ -260,49 +264,8 @@ pub fn regex_type<'a>(allocator: &'a Allocator) -> TSType<'a> {
 }
 
 /// Convert a TSType into a TSTupleElement.
-/// TSTupleElement inherits all TSType variants via the @inherit macro.
 pub fn ts_tuple_element<'a>(ts_type: TSType<'a>) -> TSTupleElement<'a> {
-  match ts_type {
-    TSType::TSAnyKeyword(t) => TSTupleElement::TSAnyKeyword(t),
-    TSType::TSBigIntKeyword(t) => TSTupleElement::TSBigIntKeyword(t),
-    TSType::TSBooleanKeyword(t) => TSTupleElement::TSBooleanKeyword(t),
-    TSType::TSIntrinsicKeyword(t) => TSTupleElement::TSIntrinsicKeyword(t),
-    TSType::TSNeverKeyword(t) => TSTupleElement::TSNeverKeyword(t),
-    TSType::TSNullKeyword(t) => TSTupleElement::TSNullKeyword(t),
-    TSType::TSNumberKeyword(t) => TSTupleElement::TSNumberKeyword(t),
-    TSType::TSObjectKeyword(t) => TSTupleElement::TSObjectKeyword(t),
-    TSType::TSStringKeyword(t) => TSTupleElement::TSStringKeyword(t),
-    TSType::TSSymbolKeyword(t) => TSTupleElement::TSSymbolKeyword(t),
-    TSType::TSUndefinedKeyword(t) => TSTupleElement::TSUndefinedKeyword(t),
-    TSType::TSUnknownKeyword(t) => TSTupleElement::TSUnknownKeyword(t),
-    TSType::TSVoidKeyword(t) => TSTupleElement::TSVoidKeyword(t),
-    TSType::TSArrayType(t) => TSTupleElement::TSArrayType(t),
-    TSType::TSConditionalType(t) => TSTupleElement::TSConditionalType(t),
-    TSType::TSConstructorType(t) => TSTupleElement::TSConstructorType(t),
-    TSType::TSFunctionType(t) => TSTupleElement::TSFunctionType(t),
-    TSType::TSImportType(t) => TSTupleElement::TSImportType(t),
-    TSType::TSIndexedAccessType(t) => TSTupleElement::TSIndexedAccessType(t),
-    TSType::TSInferType(t) => TSTupleElement::TSInferType(t),
-    TSType::TSIntersectionType(t) => TSTupleElement::TSIntersectionType(t),
-    TSType::TSLiteralType(t) => TSTupleElement::TSLiteralType(t),
-    TSType::TSMappedType(t) => TSTupleElement::TSMappedType(t),
-    TSType::TSNamedTupleMember(t) => TSTupleElement::TSNamedTupleMember(t),
-    TSType::TSTemplateLiteralType(t) => {
-      TSTupleElement::TSTemplateLiteralType(t)
-    }
-    TSType::TSThisType(t) => TSTupleElement::TSThisType(t),
-    TSType::TSTupleType(t) => TSTupleElement::TSTupleType(t),
-    TSType::TSTypeLiteral(t) => TSTupleElement::TSTypeLiteral(t),
-    TSType::TSTypeOperatorType(t) => TSTupleElement::TSTypeOperatorType(t),
-    TSType::TSTypePredicate(t) => TSTupleElement::TSTypePredicate(t),
-    TSType::TSTypeQuery(t) => TSTupleElement::TSTypeQuery(t),
-    TSType::TSTypeReference(t) => TSTupleElement::TSTypeReference(t),
-    TSType::TSUnionType(t) => TSTupleElement::TSUnionType(t),
-    TSType::TSParenthesizedType(t) => TSTupleElement::TSParenthesizedType(t),
-    TSType::JSDocNullableType(t) => TSTupleElement::JSDocNullableType(t),
-    TSType::JSDocNonNullableType(t) => TSTupleElement::JSDocNonNullableType(t),
-    TSType::JSDocUnknownType(t) => TSTupleElement::JSDocUnknownType(t),
-  }
+  TSTupleElement::from(ts_type)
 }
 
 pub enum DeclMutabilityKind {
@@ -371,4 +334,67 @@ pub fn maybe_lit_to_ts_type<'a>(
       _ => None,
     },
   }
+}
+
+/// Whether the identifier reference is unresolved (i.e. refers to a global).
+pub fn is_global_ident(
+  ident: &IdentifierReference,
+  scoping: Option<&Scoping>,
+) -> bool {
+  is_unresolved_id(&ident.to_id(scoping))
+}
+
+/// Gets the argument of an `Object.freeze(...)` call where `Object` is
+/// the global object, if the call expression matches that shape.
+pub fn object_freeze_call_arg<'a, 'b>(
+  call_expr: &'b CallExpression<'a>,
+  scoping: Option<&Scoping>,
+) -> Option<&'b Expression<'a>> {
+  let Expression::StaticMemberExpression(member_expr) = &call_expr.callee
+  else {
+    return None;
+  };
+  let Expression::Identifier(obj_ident) = &member_expr.object else {
+    return None;
+  };
+  if obj_ident.name != "Object" || !is_global_ident(obj_ident, scoping) {
+    return None;
+  }
+  if member_expr.property.name != "freeze" {
+    return None;
+  }
+  if call_expr.arguments.len() != 1 {
+    return None;
+  }
+  // a spread argument is not an expression
+  call_expr.arguments.first()?.as_expression()
+}
+
+/// Gets the type of an untagged template literal expression.
+///
+/// A template literal without substitutions is equivalent to a string
+/// literal, so it keeps its literal type in a const position. Otherwise
+/// the type depends on the substituted expressions, which TypeScript only
+/// evaluates in a const assertion (that case is handled by leaving the
+/// expression as-is instead of inferring a type from it).
+pub fn tpl_to_ts_type<'a>(
+  allocator: &'a Allocator,
+  tpl: &TemplateLiteral<'a>,
+  decl_kind: DeclMutabilityKind,
+) -> TSType<'a> {
+  if let DeclMutabilityKind::Const = decl_kind
+    && tpl.expressions.is_empty()
+    && let Some(quasi) = tpl.quasis.first()
+    && let Some(cooked) = quasi.value.cooked
+  {
+    return ts_lit_type(
+      allocator,
+      TSLiteral::StringLiteral(Box::new_in(
+        StringLiteral::new(SPAN, cooked, None, &AstBuilder::new(allocator)),
+        &allocator,
+      )),
+    );
+  }
+
+  ts_keyword_type(allocator, TSKeywordKind::String)
 }

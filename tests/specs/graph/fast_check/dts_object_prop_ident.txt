@@ -67,9 +67,7 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   export function fAdd(a: number, b: number): number {
     return {} as never;
   }
-  export const f = {
-    add: fAdd
-  };
+  export const f = { add: fAdd };
   --- DTS ---
   export declare function fAdd(a: number, b: number): number;
   export declare const f: {

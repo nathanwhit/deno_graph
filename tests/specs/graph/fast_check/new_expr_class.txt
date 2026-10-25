@@ -69,24 +69,18 @@ Fast check https://jsr.io/@scope/a/1.0.0/mod.ts:
   {}
   export class Dimensions {
     declare values: number[];
-    constructor(values: number[]){}
+    constructor(values: number[]) {}
   }
-  export const units = Object.freeze({
+  export const units = Object.freeze(({
     m: {
       s: 1,
-      d: new Dimensions([
-        1,
-        0
-      ])
+      d: new Dimensions([1, 0])
     },
     g: {
-      s: 1e-3,
-      d: new Dimensions([
-        0,
-        1
-      ])
+      s: .001,
+      d: new Dimensions([0, 1])
     }
-  } as const satisfies Record<string, {
+  } as const) satisfies Record<string, {
     s: number;
     d: Dimensions;
   }>);
